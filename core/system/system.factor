@@ -9,15 +9,16 @@ PRIMITIVE: disable-ctrl-break ( -- )
 PRIMITIVE: enable-ctrl-break ( -- )
 PRIMITIVE: nano-count ( -- ns )
 
-SINGLETONS: x86.32 x86.64 arm.32 arm.64 ppc.32 ppc.64 ;
+SINGLETONS: x86.32 x86.64 arm.32 arm.64 ppc.32 ppc.64 wasm.32 ;
 
 UNION: x86 x86.32 x86.64 ;
 UNION: arm arm.32 arm.64 ;
 UNION: ppc ppc.32 ppc.64 ;
+UNION: wasm wasm.32 ;
 
 : cpu ( -- class ) \ cpu get-global ; foldable
 
-SINGLETONS: windows macos linux freebsd ;
+SINGLETONS: windows macos linux freebsd wasi ;
 
 UNION: bsd freebsd ;
 UNION: unix macos linux freebsd bsd ;
@@ -60,6 +61,7 @@ UNION: unix macos linux freebsd bsd ;
         { "arm.64" arm.64 }
         { "ppc.32" ppc.32 }
         { "ppc.64" ppc.64 }
+        { "wasm.32" wasm.32 }
     } at ;
 
 : string>os ( str -- class )
@@ -68,6 +70,7 @@ UNION: unix macos linux freebsd bsd ;
         { "macos" macos }
         { "freebsd" freebsd }
         { "linux" linux }
+        { "wasi" wasi }
     } at ;
 
 PRIVATE>

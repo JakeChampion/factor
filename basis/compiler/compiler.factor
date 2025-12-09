@@ -8,7 +8,7 @@ compiler.errors compiler.tree.builder compiler.tree.optimizer
 compiler.units compiler.utilities continuations definitions
 generic generic.single io kernel macros make namespaces
 sequences sets stack-checker.dependencies stack-checker.errors
-stack-checker.inlining vocabs.loader words ;
+stack-checker.inlining system vocabs.loader words compiler.wasm ;
 IN: compiler
 
 SYMBOL: compiled
@@ -116,14 +116,18 @@ M: word combinator? inline? ;
     ] [ deoptimize* ] if ;
 
 : backend ( tree word -- )
-    build-cfg [
-        [
-            [ optimize-cfg ]
-            [ finalize-cfg ]
-            [ [ generate ] [ label>> ] bi compiled get set-at ]
-            tri
-        ] with-cfg
-    ] each ;
+    cpu wasm? [
+        wasm-backend
+    ] [
+        build-cfg [
+            [
+                [ optimize-cfg ]
+                [ finalize-cfg ]
+                [ [ generate ] [ label>> ] bi compiled get set-at ]
+                tri
+            ] with-cfg
+        ] each
+    ] if ;
 
 : compile-word ( word -- )
     ! We return early if the word has breakpoints or if it

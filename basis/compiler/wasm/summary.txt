@@ -1,0 +1,1 @@
+Stub vocabulary for a forthcoming WASM/WASI backend; dispatch exists but codegen is unimplemented.
