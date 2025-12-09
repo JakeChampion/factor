@@ -1,6 +1,6 @@
 ! Copyright (C) 2025 The Factor Project.
 ! Stub entry point for a future WASM/WASI backend.
-USING: kernel sequences system ;
+USING: accessors kernel sequences system ;
 IN: compiler.wasm
 
 ERROR: wasm-backend-unimplemented word ;
