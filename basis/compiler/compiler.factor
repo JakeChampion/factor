@@ -116,7 +116,7 @@ M: word combinator? inline? ;
     ] [ deoptimize* ] if ;
 
 : backend ( tree word -- )
-    cpu wasm? [
+    wasm-target? [
         wasm-backend
     ] [
         build-cfg [
