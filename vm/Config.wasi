@@ -1,0 +1,10 @@
+# Experimental WASM/WASI target (interpreter-only prototype)
+
+# Platform headers/objects
+PLAF_MASTER_HEADERS += vm/os-wasm.hpp vm/cpu-wasm.hpp
+PLAF_DLL_OBJS += $(BUILD_DIR)/os-wasm.o $(BUILD_DIR)/mvm-none.o
+PLAF_EXE_OBJS += $(BUILD_DIR)/main-unix.o
+
+EXE_SUFFIX := .wasm
+
+# TODO: add wasm32-wasi toolchain flags and interpreter-only source list.

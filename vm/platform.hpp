@@ -1,4 +1,6 @@
-#if defined(WINDOWS)
+#if defined(FACTOR_WASM)
+  #include "os-wasm.hpp"
+#elif defined(WINDOWS)
   #if defined(WINNT)
     #include "os-windows.hpp"
     #if defined(FACTOR_AMD64)
@@ -73,6 +75,8 @@
   #include "cpu-arm.32.hpp"
 #elif defined(FACTOR_ARM64)
   #include "cpu-arm.64.hpp"
+#elif defined(FACTOR_WASM)
+  #include "cpu-wasm.hpp"
 #else
   #error "Unsupported CPU"
 #endif

@@ -80,6 +80,9 @@
 #elif defined(__POWERPC__) || defined(__ppc__) || defined(_ARCH_PPC)
 #define FACTOR_PPC32
 #define FACTOR_PPC
+#elif defined(__wasm32__) || defined(__EMSCRIPTEN__) || defined(__wasi__)
+#define FACTOR_WASM
+#define FACTOR_WASM32
 #else
 #error "Unsupported architecture"
 #endif
