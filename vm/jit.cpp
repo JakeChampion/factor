@@ -182,8 +182,6 @@ code_block* jit::to_code_block(code_block_type type, cell frame_size) {
       literals.elements.value(), frame_size);
 }
 
-}
-
 #endif // FACTOR_WASM
 
 }
