@@ -36,6 +36,9 @@ typedef int THREADHANDLE;
 THREADHANDLE start_thread(void* (*start_routine)(void*), void* args);
 inline static THREADHANDLE thread_id() { return 0; }
 
+int getpagesize();
+bool set_memory_locked(cell base, cell size, bool locked);
+
 uint64_t nano_count();
 void sleep_nanos(uint64_t nsec);
 

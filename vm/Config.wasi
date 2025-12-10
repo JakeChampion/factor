@@ -7,4 +7,14 @@ PLAF_EXE_OBJS += $(BUILD_DIR)/main-unix.o
 
 EXE_SUFFIX := .wasm
 
-# TODO: add wasm32-wasi toolchain flags and interpreter-only source list.
+# Toolchain and flags
+ARCHITECTURE_FLAG += --target=wasm32-wasi
+CFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
+CXXFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
+LDFLAGS += --target=wasm32-wasi
+
+# Link with minimal runtime; no dlopen/pthread/rt
+LIBS :=
+DLL_EXTENSION := .a
+SHARED_DLL_EXTENSION := .a
+SHARED_FLAG := -r

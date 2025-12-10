@@ -2,6 +2,18 @@
 
 namespace factor {
 
+static const int wasm_page_size = 64 * 1024;
+
+int getpagesize() { return wasm_page_size; }
+
+bool set_memory_locked(cell base, cell size, bool locked) {
+  (void)base;
+  (void)size;
+  (void)locked;
+  // No guard pages on wasm; pretend it succeeded.
+  return true;
+}
+
 THREADHANDLE start_thread(void* (*start_routine)(void*), void* args) {
   (void)start_routine;
   (void)args;
@@ -47,6 +59,22 @@ void* native_dlsym(void* handle, const char* symbol) {
 void native_dlclose(void* handle) {
   (void)handle;
   fatal_error("dlclose is not available on wasm", 0);
+}
+
+segment::segment(cell size_, bool executable_p) {
+  (void)executable_p;
+  size = align(size_, wasm_page_size);
+  cell alloc_size = size + 2 * wasm_page_size;
+  char* base = (char*)malloc(alloc_size);
+  if (!base)
+    fatal_error("Out of memory allocating segment", alloc_size);
+  start = (cell)(base + wasm_page_size);
+  end = start + size;
+}
+
+segment::~segment() {
+  char* base = (char*)(start - wasm_page_size);
+  free(base);
 }
 
 }
