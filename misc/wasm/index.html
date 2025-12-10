@@ -17,36 +17,53 @@
   <p>Serves <code>factor.wasm</code> with a WASI shim; expects a <code>factor.image</code> alongside.</p>
 
   <label>WASM path</label>
-  <input id="wasmPath" value="factor.wasm">
+  <input id="wasmPath" value="/factor.wasm">
   <label>Image path</label>
-  <input id="imagePath" value="factor.image">
+  <input id="imagePath" value="/factor.image">
   <button id="run">Run</button>
 
   <pre id="log"></pre>
 
   <script type="module">
-    import { WASI } from "https://unpkg.com/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js";
+    import {
+      WASI,
+      File,
+      OpenFile,
+      Directory,
+      PreopenDirectory,
+      ConsoleStdout,
+    } from "https://unpkg.com/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js";
 
     const logEl = document.getElementById("log");
     const append = (msg) => { logEl.textContent += msg + "\n"; };
 
     document.getElementById("run").onclick = async () => {
       logEl.textContent = "";
-      const wasmPath = document.getElementById("wasmPath").value || "/factor.wasm";
-      const imagePath = document.getElementById("imagePath").value || "/factor.image";
+      const wasmPath = document.getElementById("wasmPath").value || "factor.wasm";
+      const imagePath = document.getElementById("imagePath").value || "factor.image";
 
       append(`Loading ${wasmPath}...`);
-      const wasi = new WASI([], {
-        args: [wasmPath, `-image=${imagePath}`],
-        env: {},
-        preopens: { "/": "/" },
-        stdout: (buf) => append(new TextDecoder().decode(buf)),
-        stderr: (buf) => append(new TextDecoder().decode(buf)),
-      });
+      const wasmModule = await WebAssembly.compileStreaming(fetch(wasmPath));
+
+      append(`Fetching ${imagePath} into in-memory FS...`);
+      const imageData = await (await fetch(imagePath)).arrayBuffer();
+
+      const stdoutFd = ConsoleStdout.lineBuffered((line) => append(line));
+      const stderrFd = ConsoleStdout.lineBuffered((line) => append(line));
+      const stdinFd = new OpenFile(new File(new ArrayBuffer(0), { readonly: true }));
+      const rootDir = new PreopenDirectory(
+        ".",
+        new Map([["factor.image", new File(imageData, { readonly: true })]])
+      );
+
+      const args = [wasmPath, `-image=${imagePath}`];
+      const env = []; // array of "KEY=value"
+      const fds = [stdinFd, stdoutFd, stderrFd, rootDir];
+
+      const wasi = new WASI(args, env, fds);
 
       try {
-        const module = await WebAssembly.compileStreaming(fetch(wasmPath));
-        const instance = await WebAssembly.instantiate(module, {
+        const instance = await WebAssembly.instantiate(wasmModule, {
           wasi_snapshot_preview1: wasi.wasiImport,
         });
         append("Starting...");
