@@ -14,6 +14,12 @@ CFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
 CXXFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
 LDFLAGS += --target=wasm32-wasi
 
+ifdef WASI_SYSROOT
+  CFLAGS += --sysroot=$(WASI_SYSROOT)
+  CXXFLAGS += --sysroot=$(WASI_SYSROOT)
+  LDFLAGS += --sysroot=$(WASI_SYSROOT)
+endif
+
 # Link with minimal runtime; no dlopen/pthread/rt
 LIBS :=
 DLL_EXTENSION := .a
