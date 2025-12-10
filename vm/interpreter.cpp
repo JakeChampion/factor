@@ -306,6 +306,26 @@ bool factor_vm::dispatch_subprimitive(word* w) {
     return true;
   }
 
+  if (name == "drop-locals") {
+    fixnum count = untag_fixnum(ctx->pop());
+    ctx->retainstack -= count * sizeof(cell);
+    return true;
+  }
+
+  if (name == "load-local") {
+    cell value = ctx->pop();
+    ctx->retainstack += sizeof(cell);
+    *(cell*)ctx->retainstack = value;
+    return true;
+  }
+
+  if (name == "get-local") {
+    fixnum index = untag_fixnum(ctx->pop());
+    cell* slot = (cell*)(ctx->retainstack + index * sizeof(cell));
+    ctx->push(*slot);
+    return true;
+  }
+
   if (name == "tag") {
     cell obj = ctx->pop();
     ctx->push(tag_fixnum(TAG(obj)));
@@ -331,12 +351,24 @@ bool factor_vm::dispatch_subprimitive(word* w) {
     return true;
   }
 
+  if (name == "fpu-state") {
+    ctx->push(false_object);
+    return true;
+  }
+
+  if (name == "set-fpu-state") {
+    ctx->pop();
+    return true;
+  }
+
+  if (name == "set-callstack") {
+    ctx->pop();
+    return true;
+  }
+
   // Known but unsupported subprimitives on wasm for now.
   if (name == "c-to-factor" || name == "unwind-native-frames" ||
-      name == "set-callstack" || name == "fpu-state" ||
-      name == "set-fpu-state" || name == "leaf-signal-handler" ||
-      name == "signal-handler" || name == "drop-locals" ||
-      name == "get-local" || name == "load-local" ||
+      name == "leaf-signal-handler" || name == "signal-handler" ||
       name == "(set-context)" || name == "(set-context-and-delete)" ||
       name == "(start-context)" || name == "(start-context-and-delete)") {
     fatal_error("Subprimitive not implemented in wasm interpreter",
