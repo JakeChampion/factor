@@ -37,8 +37,13 @@ struct full_collection_copier : no_fixup {
 
     cell size = obj->size();
     object* newpointer = tenured->allot(size);
-    if (!newpointer)
+    if (!newpointer) {
+#if defined(FACTOR_WASM)
+      fatal_error("Out of tenured space on wasm", size);
+#else
       throw must_start_gc_again();
+#endif
+    }
     memcpy(newpointer, obj, size);
     obj->forward_to(newpointer);
 
