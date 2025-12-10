@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Factor WASM (WASI) runner</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 2rem; background: #0f172a; color: #e2e8f0; }
+    h1 { margin: 0 0 1rem; }
+    label { display: block; margin: 0.5rem 0 0.25rem; }
+    input { width: 100%; padding: 0.35rem; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: inherit; }
+    button { margin-top: 0.75rem; padding: 0.5rem 0.9rem; border: 1px solid #38bdf8; background: #0ea5e9; color: #0f172a; border-radius: 6px; font-weight: 600; cursor: pointer; }
+    pre { background: #0b1221; border: 1px solid #1f2937; border-radius: 8px; padding: 0.75rem; min-height: 200px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Factor WASM (WASI) runner</h1>
+  <p>Serves <code>factor.wasm</code> with a WASI shim; expects a <code>factor.image</code> alongside.</p>
+
+  <label>WASM path</label>
+  <input id="wasmPath" value="factor.wasm">
+  <label>Image path</label>
+  <input id="imagePath" value="factor.image">
+  <button id="run">Run</button>
+
+  <pre id="log"></pre>
+
+  <script type="module">
+    import { WASI } from "https://unpkg.com/@bjorn3/browser_wasi_shim@2.0.1/dist/index.js";
+
+    const logEl = document.getElementById("log");
+    const append = (msg) => { logEl.textContent += msg + "\n"; };
+
+    document.getElementById("run").onclick = async () => {
+      logEl.textContent = "";
+      const wasmPath = document.getElementById("wasmPath").value || "factor.wasm";
+      const imagePath = document.getElementById("imagePath").value || "factor.image";
+
+      append(`Loading ${wasmPath}...`);
+      const wasi = new WASI([], {
+        args: [wasmPath, `-image=${imagePath}`],
+        env: {},
+        preopens: { "/": "/" },
+        stdout: (buf) => append(new TextDecoder().decode(buf)),
+        stderr: (buf) => append(new TextDecoder().decode(buf)),
+      });
+
+      try {
+        const module = await WebAssembly.compileStreaming(fetch(wasmPath));
+        const instance = await WebAssembly.instantiate(module, {
+          wasi_snapshot_preview1: wasi.wasiImport,
+        });
+        append("Starting...");
+        wasi.start(instance);
+        append("Finished.");
+      } catch (err) {
+        append(`Error: ${err}`);
+        console.error(err);
+      }
+    };
+  </script>
+</body>
+</html>
