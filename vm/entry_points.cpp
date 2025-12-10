@@ -2,6 +2,28 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+void factor_vm::c_to_factor(cell quot) {
+  (void)quot;
+  fatal_error("c_to_factor is not supported on wasm (no callbacks/JIT)", 0);
+}
+
+void factor_vm::unwind_native_frames(cell quot, cell to) {
+  (void)quot;
+  (void)to;
+  fatal_error("unwind_native_frames is not supported on wasm", 0);
+}
+
+cell factor_vm::get_fpu_state() {
+  fatal_error("get_fpu_state is not supported on wasm", 0);
+  return 0;
+}
+
+void factor_vm::set_fpu_state(cell state) { (void)state; }
+
+#else
+
 void factor_vm::c_to_factor(cell quot) {
   // First time this is called, wrap the c-to-factor sub-primitive inside
   // of a callback stub, which saves and restores non-volatile registers
@@ -37,5 +59,7 @@ void factor_vm::set_fpu_state(cell state) {
   CODE_TO_FUNCTION_POINTER(func);
   ((set_fpu_state_func_type) func)(state);
 }
+
+#endif // FACTOR_WASM
 
 }
