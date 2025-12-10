@@ -29,6 +29,79 @@ std::string word_name_string(word* w) {
   return std::string(bytes, static_cast<size_t>(len));
 }
 
+cell tuple_slot(tuple* t, fixnum slot_index) {
+  cell* base = reinterpret_cast<cell*>(t);
+  return base[slot_index];
+}
+
+std::string tuple_class_name(tuple* t) {
+  tuple_layout* layout = untag<tuple_layout>(t->layout);
+  word* klass = untag<word>(layout->klass);
+  return word_name_string(klass);
+}
+
+fixnum interp_length(cell obj);
+
+fixnum tuple_length(tuple* t) {
+  std::string cname = tuple_class_name(t);
+
+  if (cname == "slice") {
+    fixnum from = untag_fixnum(tuple_slot(t, 2));
+    fixnum to = untag_fixnum(tuple_slot(t, 3));
+    return to - from;
+  }
+  if (cname == "reversed" || cname == "wrapped-sequence") {
+    return interp_length(tuple_slot(t, 2));
+  }
+  if (cname == "curried") {
+    return interp_length(tuple_slot(t, 3)) + 1;
+  }
+  if (cname == "composed") {
+    return interp_length(tuple_slot(t, 2)) + interp_length(tuple_slot(t, 3));
+  }
+  if (cname == "vector") {
+    return untag_fixnum(tuple_slot(t, 3));
+  }
+
+  if (trace_enabled())
+    std::cout << "[wasm] length unsupported tuple class " << cname << " ptr "
+              << (void*)t << std::endl;
+  fatal_error("length: unsupported tuple class in wasm interpreter", (cell)t);
+  return 0;
+}
+
+fixnum interp_length(cell obj) {
+  switch (tagged<object>(obj).type()) {
+    case ARRAY_TYPE:
+      return (fixnum)array_capacity(untag<array>(obj));
+    case BYTE_ARRAY_TYPE:
+      return (fixnum)array_capacity(untag<byte_array>(obj));
+    case STRING_TYPE:
+      return untag_fixnum(untag<string>(obj)->length);
+    case QUOTATION_TYPE: {
+      quotation* q = untag<quotation>(obj);
+      return (fixnum)array_capacity(untag<array>(q->array));
+    }
+    case WORD_TYPE: {
+      word* w = untag<word>(obj);
+      if (tagged<object>(w->def).type() == QUOTATION_TYPE)
+        return interp_length(w->def);
+      return 0;
+    }
+    case WRAPPER_TYPE:
+      return interp_length(untag<wrapper>(obj)->object);
+    case TUPLE_TYPE:
+      return tuple_length(untag<tuple>(obj));
+    default:
+      if (trace_enabled())
+        std::cout << "[wasm] length unsupported type "
+                  << tagged<object>(obj).type() << " ptr " << (void*)obj
+                  << std::endl;
+      fatal_error("length: unsupported object type", obj);
+      return 0;
+  }
+}
+
 } // namespace
 
 // Handle a handful of core combinators directly so we don't depend on
@@ -38,15 +111,51 @@ bool factor_vm::interpret_special_word(const std::string& name) {
 
   if (name == "call" || name == "(call)") {
     cell callable = ctx->pop();
-    switch (type_of(callable)) {
-      case QUOTATION_TYPE:
-        interpret_quotation(callable);
-        return true;
-      case WORD_TYPE:
-        interpret_word(callable);
-        return true;
-      default:
-        fatal_error("call: unsupported callable in wasm interpreter", callable);
+    while (true) {
+      switch (type_of(callable)) {
+        case QUOTATION_TYPE:
+          interpret_quotation(callable);
+          return true;
+        case WORD_TYPE:
+          interpret_word(callable);
+          return true;
+        case WRAPPER_TYPE: {
+          callable = untag<wrapper>(callable)->object;
+          if (trace_enabled())
+            std::cout << "[wasm] call unwrap wrapper -> " << (void*)callable
+                      << std::endl;
+          continue;
+        }
+        case TUPLE_TYPE: {
+          tuple* t = untag<tuple>(callable);
+          std::string cname = tuple_class_name(t);
+          if (cname == "curried") {
+            cell obj = tuple_slot(t, 2);
+            cell quot = tuple_slot(t, 3);
+            ctx->push(obj);
+            interpret_quotation(quot);
+            return true;
+          }
+          if (cname == "composed") {
+            cell first = tuple_slot(t, 2);
+            cell second = tuple_slot(t, 3);
+            interpret_quotation(first);
+            interpret_quotation(second);
+            return true;
+          }
+          if (trace_enabled())
+            std::cout << "[wasm] call tuple class " << cname << " ptr "
+                      << (void*)callable << std::endl;
+          fatal_error("call: unsupported tuple class in wasm interpreter",
+                      callable);
+        }
+        default:
+          if (trace_enabled())
+            std::cout << "[wasm] call unsupported type " << type_of(callable)
+                      << " ptr " << (void*)callable << std::endl;
+          fatal_error("call: unsupported callable in wasm interpreter",
+                      callable);
+      }
     }
   }
 
@@ -98,28 +207,8 @@ bool factor_vm::interpret_special_word(const std::string& name) {
 
   if (name == "length") {
     cell obj = ctx->pop();
-    switch (type_of(obj)) {
-      case ARRAY_TYPE:
-        ctx->push(tag_fixnum(array_capacity(untag<array>(obj))));
-        return true;
-      case BYTE_ARRAY_TYPE:
-        ctx->push(tag_fixnum(array_capacity(untag<byte_array>(obj))));
-        return true;
-      case STRING_TYPE:
-        ctx->push(untag<string>(obj)->length);
-        return true;
-      case QUOTATION_TYPE: {
-        quotation* q = untag<quotation>(obj);
-        ctx->push(tag_fixnum(array_capacity(untag<array>(q->array))));
-        return true;
-      }
-      default:
-        if (trace_enabled())
-          std::cout << "[wasm] length fallback for type " << type_of(obj)
-                    << " ptr " << (void*)obj << std::endl;
-        ctx->push(tag_fixnum(0));
-        return true;
-    }
+    ctx->push(tag_fixnum(interp_length(obj)));
+    return true;
   }
 
   if (name == "?") {
@@ -140,8 +229,23 @@ bool factor_vm::interpret_special_word(const std::string& name) {
 
   if (name == "callable?") {
     cell obj = ctx->pop();
-    cell t = type_of(obj);
-    bool callable = (t == QUOTATION_TYPE || t == WORD_TYPE);
+    bool callable = false;
+    while (true) {
+      cell t = type_of(obj);
+      if (t == QUOTATION_TYPE || t == WORD_TYPE) {
+        callable = true;
+        break;
+      }
+      if (t == WRAPPER_TYPE) {
+        obj = untag<wrapper>(obj)->object;
+        continue;
+      }
+      if (t == TUPLE_TYPE) {
+        std::string cname = tuple_class_name(untag<tuple>(obj));
+        callable = (cname == "curried" || cname == "composed");
+      }
+      break;
+    }
     ctx->push(tag_boolean(callable));
     return true;
   }
