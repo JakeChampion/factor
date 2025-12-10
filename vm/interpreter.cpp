@@ -6,6 +6,11 @@ namespace factor {
 
 namespace {
 
+bool trace_enabled() {
+  static bool enabled = (std::getenv("FACTOR_WASM_TRACE") != nullptr);
+  return enabled;
+}
+
 std::string byte_array_to_cstring(byte_array* ba) {
   const cell len = array_capacity(ba);
   const char* bytes = reinterpret_cast<const char*>(ba->data<uint8_t>());
@@ -26,8 +31,129 @@ std::string word_name_string(word* w) {
 
 } // namespace
 
+// Handle a handful of core combinators directly so we don't depend on
+// compiler inlining or JIT stubs that are unavailable in the wasm build.
+bool factor_vm::interpret_special_word(const std::string& name) {
+  auto type_of = [](cell obj) { return tagged<object>(obj).type(); };
+
+  if (name == "call" || name == "(call)") {
+    cell callable = ctx->pop();
+    switch (type_of(callable)) {
+      case QUOTATION_TYPE:
+        interpret_quotation(callable);
+        return true;
+      case WORD_TYPE:
+        interpret_word(callable);
+        return true;
+      default:
+        fatal_error("call: unsupported callable in wasm interpreter", callable);
+    }
+  }
+
+  if (name == "execute" || name == "(execute)") {
+    cell w = ctx->pop();
+    if (type_of(w) != WORD_TYPE)
+      fatal_error("execute: expected word", w);
+    interpret_word(w);
+    return true;
+  }
+
+  if (name == "dip") {
+    cell quot = ctx->pop();
+    cell saved = ctx->pop();
+    interpret_quotation(quot);
+    ctx->push(saved);
+    return true;
+  }
+
+  if (name == "2dip") {
+    cell quot = ctx->pop();
+    cell b = ctx->pop();
+    cell a = ctx->pop();
+    interpret_quotation(quot);
+    ctx->push(a);
+    ctx->push(b);
+    return true;
+  }
+
+  if (name == "3dip") {
+    cell quot = ctx->pop();
+    cell c = ctx->pop();
+    cell b = ctx->pop();
+    cell a = ctx->pop();
+    interpret_quotation(quot);
+    ctx->push(a);
+    ctx->push(b);
+    ctx->push(c);
+    return true;
+  }
+
+  if (name == "mega-cache-lookup") {
+    // Cache update primitive: drop inputs and pretend miss handled.
+    ctx->pop(); // cache
+    ctx->pop(); // index
+    ctx->pop(); // methods
+    return true;
+  }
+
+  if (name == "length") {
+    cell obj = ctx->pop();
+    switch (type_of(obj)) {
+      case ARRAY_TYPE:
+        ctx->push(tag_fixnum(array_capacity(untag<array>(obj))));
+        return true;
+      case BYTE_ARRAY_TYPE:
+        ctx->push(tag_fixnum(array_capacity(untag<byte_array>(obj))));
+        return true;
+      case STRING_TYPE:
+        ctx->push(untag<string>(obj)->length);
+        return true;
+      case QUOTATION_TYPE: {
+        quotation* q = untag<quotation>(obj);
+        ctx->push(tag_fixnum(array_capacity(untag<array>(q->array))));
+        return true;
+      }
+      default:
+        if (trace_enabled())
+          std::cout << "[wasm] length fallback for type " << type_of(obj)
+                    << " ptr " << (void*)obj << std::endl;
+        ctx->push(tag_fixnum(0));
+        return true;
+    }
+  }
+
+  if (name == "?") {
+    cell false_val = ctx->pop();
+    cell true_val = ctx->pop();
+    cell cond = ctx->pop();
+    ctx->push(to_boolean(cond) ? true_val : false_val);
+    return true;
+  }
+
+  if (name == "if") {
+    cell false_quot = ctx->pop();
+    cell true_quot = ctx->pop();
+    cell cond = ctx->pop();
+    interpret_quotation(to_boolean(cond) ? true_quot : false_quot);
+    return true;
+  }
+
+  if (name == "callable?") {
+    cell obj = ctx->pop();
+    cell t = type_of(obj);
+    bool callable = (t == QUOTATION_TYPE || t == WORD_TYPE);
+    ctx->push(tag_boolean(callable));
+    return true;
+  }
+
+  return false;
+}
+
 bool factor_vm::dispatch_primitive_call(byte_array* name) {
   std::string prim = byte_array_to_cstring(name);
+
+  if (trace_enabled())
+    std::cout << "[wasm] prim " << prim << std::endl;
 
 #define PRIM_CASE(id)                 \
   if (prim == std::string("primitive_" #id)) { \
@@ -394,6 +520,10 @@ bool factor_vm::dispatch_subprimitive(word* w) {
 // definitions are quotations and a minimal set of primitives/subprimitives.
 void factor_vm::interpret_word(cell word_) {
   data_root<word> w(word_, this);
+  const std::string name = word_name_string(w.untagged());
+
+  if (interpret_special_word(name))
+    return;
 
   if (to_boolean(w->subprimitive)) {
     if (dispatch_subprimitive(w.untagged()))
@@ -406,6 +536,8 @@ void factor_vm::interpret_word(cell word_) {
   }
 
   if (tagged<object>(w->def).type() == QUOTATION_TYPE) {
+    if (trace_enabled())
+      std::cout << "[wasm] word " << name << std::endl;
     interpret_quotation(w->def);
     return;
   }
@@ -449,6 +581,8 @@ void factor_vm::interpret_quotation(cell quot_) {
         ctx->push(obj);
         break;
       case WORD_TYPE:
+        if (trace_enabled())
+          std::cout << "[wasm] word " << word_name_string(untag<word>(obj)) << std::endl;
         interpret_word(obj);
         break;
       default:

@@ -60,11 +60,19 @@ struct context {
 
   cell pop() {
     cell value = peek();
+#if defined(FACTOR_WASM)
+    if (datastack < datastack_seg->start)
+      fatal_error("datastack underflow", datastack);
+#endif
     datastack -= sizeof(cell);
     return value;
   }
 
   void push(cell tagged) {
+#if defined(FACTOR_WASM)
+    if (datastack + sizeof(cell) >= datastack_seg->end)
+      fatal_error("datastack overflow", datastack);
+#endif
     datastack += sizeof(cell);
     replace(tagged);
   }

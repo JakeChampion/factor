@@ -2,6 +2,15 @@
 
 namespace factor {
 
+static bool wasm_trace_enabled() {
+#if defined(FACTOR_WASM)
+  static bool enabled = (std::getenv("FACTOR_WASM_TRACE") != nullptr);
+  return enabled;
+#else
+  return false;
+#endif
+}
+
 // Compile code in boot image so that we can execute the startup quotation
 // Allocates memory
 void factor_vm::prepare_boot_image() {
@@ -42,6 +51,17 @@ void factor_vm::prepare_boot_image() {
 }
 
 void factor_vm::init_factor(vm_parameters* p) {
+  auto trace = [&](const char* msg) {
+#if defined(FACTOR_WASM)
+    if (wasm_trace_enabled())
+      std::cout << "[wasm] " << msg << std::endl;
+#else
+    (void)msg;
+#endif
+  };
+
+  trace("init_factor start");
+
   // Kilobytes
   p->datastack_size = align_page(p->datastack_size << 10);
   p->retainstack_size = align_page(p->retainstack_size << 10);
@@ -60,6 +80,7 @@ void factor_vm::init_factor(vm_parameters* p) {
   // OS-specific initialization
   early_init();
 
+  trace("after early_init");
   p->executable_path = vm_executable_path();
 
   if (p->image_path == NULL) {
@@ -70,7 +91,10 @@ void factor_vm::init_factor(vm_parameters* p) {
       p->image_path = default_image_path();
   }
 
+  trace("before_srand");
   srand((unsigned int)nano_count());
+  trace("after_srand");
+  trace("init_ffi");
   init_ffi();
 
   datastack_size = p->datastack_size;
@@ -78,10 +102,17 @@ void factor_vm::init_factor(vm_parameters* p) {
   callstack_size = p->callstack_size;
 
   ctx = NULL;
+  trace("new_context");
   spare_ctx = new_context();
+  trace("new_context done");
 
+  trace("callbacks/load_image");
   callbacks = new callback_heap(p->callback_size, this);
   load_image(p);
+#if defined(FACTOR_WASM)
+  // Set up the initial Factor context for the interpreter path.
+  init_context(spare_ctx);
+#endif
   max_pic_size = (int)p->max_pic_size;
   special_objects[OBJ_CELL_SIZE] = tag_fixnum(sizeof(cell));
   special_objects[OBJ_ARGS] = false_object;
@@ -167,13 +198,21 @@ void factor_vm::factor_sleep(long us) {
 
 void factor_vm::start_standalone_factor(int argc, vm_char** argv) {
   vm_parameters p;
+  if (wasm_trace_enabled())
+    std::cout << "[wasm] init_from_args" << std::endl;
   p.init_from_args(argc, argv);
+  if (wasm_trace_enabled())
+    std::cout << "[wasm] init_factor" << std::endl;
   init_factor(&p);
+  if (wasm_trace_enabled())
+    std::cout << "[wasm] pass_args_to_factor" << std::endl;
   pass_args_to_factor(argc, argv);
 
   if (p.fep)
     factorbug();
 
+  if (wasm_trace_enabled())
+    std::cout << "[wasm] c_to_factor_toplevel" << std::endl;
   c_to_factor_toplevel(special_objects[OBJ_STARTUP_QUOT]);
 }
 

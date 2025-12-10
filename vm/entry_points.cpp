@@ -5,7 +5,16 @@ namespace factor {
 #if defined(FACTOR_WASM)
 
 void factor_vm::c_to_factor(cell quot) {
+  if (std::getenv("FACTOR_WASM_TRACE"))
+    std::cout << "[wasm] c_to_factor entering" << std::endl;
+
+  // Mirror the native c-to-factor stub which swaps in the spare context
+  // while running Factor code, then restores the previous one on return.
+  context* saved_ctx = ctx;
+  if (!ctx)
+    ctx = spare_ctx;
   interpret_quotation(quot);
+  ctx = saved_ctx;
 }
 
 void factor_vm::unwind_native_frames(cell quot, cell to) {

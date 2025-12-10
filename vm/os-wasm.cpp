@@ -63,9 +63,9 @@ void native_dlclose(void* handle) {
 
 void early_init() {}
 
-const char* vm_executable_path() { return "factor.wasm"; }
+const char* vm_executable_path() { return safe_strdup("factor.wasm"); }
 
-const char* default_image_path() { return "factor.image"; }
+const char* default_image_path() { return safe_strdup("factor.image"); }
 
 void factor_vm::c_to_factor_toplevel(cell quot) { c_to_factor(quot); }
 
