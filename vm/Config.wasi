@@ -22,10 +22,12 @@ PLAF_EXE_OBJS += $(BUILD_DIR)/main-unix.o
 EXE_SUFFIX := .wasm
 
 # Toolchain and flags
+CC := /opt/wasi-sdk/bin/clang
+CXX := /opt/wasi-sdk/bin/clang++
 ARCHITECTURE_FLAG += --target=wasm32-wasi
 CFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
 CXXFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
-LDFLAGS += --target=wasm32-wasi
+LDFLAGS := --target=wasm32-wasi --sysroot=$(WASI_SYSROOT)
 
 ifneq ($(strip $(WASI_SYSROOT)),)
   CFLAGS += --sysroot=$(WASI_SYSROOT)
@@ -35,10 +37,13 @@ endif
 
 
 # Link with minimal runtime; no dlopen/pthread/rt
-LIBS :=
+LIBS := -lc++ -lc++abi -lc -lm
 DLL_EXTENSION := .a
 SHARED_DLL_EXTENSION := .a
 SHARED_FLAG := -r
+
+# wasm-ld does not accept -Wl,-x
+LDFLAGS := $(filter-out -Wl,-x,$(LDFLAGS))
 
 # Disable unsupported subsystems
 DISABLE_SAMPLING_PROFILER := 1

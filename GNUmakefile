@@ -103,13 +103,21 @@ ifdef CONFIG
 		CFLAGS += $(CC_OPT) $(OPTIMIZATION)
 		CXXFLAGS += $(CXX_OPT) $(OPTIMIZATION)
 		ifeq ($(IS_CLANG), 1)
+			ifneq ($(WASM),1)
 			LDFLAGS += -Wl,-x
 			PCHFLAGS = -Winvalid-pch -include-pch $(BUILD_DIR)/master.hpp.gch
+			else
+			LDFLAGS := $(filter-out -Wl,-x,$(LDFLAGS))
+			endif
 		else
 			LDFLAGS += -Wl,-s
 			PCHFLAGS =
 		endif
 
+	endif
+
+	ifeq ($(WASM),1)
+		LDFLAGS := --target=wasm32-wasi --sysroot=$(WASI_SYSROOT)
 	endif
 
 	ifneq ($(REPRODUCIBLE), 0)
@@ -161,6 +169,7 @@ ifdef CONFIG
 		$(BUILD_DIR)/tuples.o \
 		$(BUILD_DIR)/utilities.o \
 		$(BUILD_DIR)/vm.o \
+		$(BUILD_DIR)/interpreter.o \
 		$(BUILD_DIR)/words.o \
 		$(BUILD_DIR)/zstd.o
 

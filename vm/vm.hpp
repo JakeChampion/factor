@@ -676,6 +676,8 @@ struct factor_vm {
   void unwind_native_frames(cell quot, cell to);
   cell get_fpu_state();
   void set_fpu_state(cell state);
+  void* interpreter_entry_point();
+  void set_interpreter_entry_points();
 
   // safepoints
   void handle_safepoint(cell pc);

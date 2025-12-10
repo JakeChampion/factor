@@ -38,9 +38,9 @@ void factor_vm::update_code_heap_words(bool reset_inline_caches) {
   (void)reset_inline_caches;
 }
 void factor_vm::primitive_modify_code_heap() {
-  ctx->drop();
-  ctx->drop();
-  ctx->drop();
+  ctx->pop();
+  ctx->pop();
+  ctx->pop();
 }
 void factor_vm::primitive_code_room() { ctx->push(false_object); }
 void factor_vm::primitive_strip_stack_traces() {}

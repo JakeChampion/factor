@@ -3,6 +3,7 @@
 namespace factor {
 
 factor_vm* global_vm;
+std::map<THREADHANDLE, factor_vm*> thread_vms;
 
 void init_mvm() { global_vm = NULL; }
 

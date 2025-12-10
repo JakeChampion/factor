@@ -4,29 +4,21 @@ namespace factor {
 
 #if defined(FACTOR_WASM)
 
-inline_cache_entry* inline_cache::entry_for(factor_vm* vm, cell klass) {
-  (void)vm;
-  (void)klass;
-  return NULL;
-}
+struct inline_cache_entry {};
 
-void factor_vm::update_inline_cache_transitions(code_block* compiled, cell size) {
-  (void)compiled;
-  (void)size;
-}
+struct inline_cache {
+  inline_cache_entry* entry_for(factor_vm* vm, cell klass) {
+    (void)vm;
+    (void)klass;
+    return NULL;
+  }
+};
 
 void factor_vm::deallocate_inline_cache(cell return_address) {
   (void)return_address;
 }
 
 void factor_vm::update_pic_count(cell type) { (void)type; }
-
-code_block* factor_vm::merge_inline_caches(code_block* compiled,
-                                           std::set<code_block*> visited) {
-  (void)compiled;
-  (void)visited;
-  return NULL;
-}
 
 cell factor_vm::add_inline_cache_entry(cell cache_entries_, cell klass_,
                                        cell method_) {
@@ -38,6 +30,12 @@ cell factor_vm::add_inline_cache_entry(cell cache_entries_, cell klass_,
 void factor_vm::update_pic_transitions(cell pic_size) { (void)pic_size; }
 
 cell factor_vm::inline_cache_miss(cell return_address) {
+  (void)return_address;
+  fatal_error("Inline caches not supported on wasm", 0);
+  return 0;
+}
+
+VM_C_API cell inline_cache_miss(cell return_address, factor_vm* parent) {
   (void)return_address;
   fatal_error("Inline caches not supported on wasm", 0);
   return 0;

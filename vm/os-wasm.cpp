@@ -110,6 +110,13 @@ bool move_file(const vm_char* path1, const vm_char* path2) {
   return false;
 }
 
+void lock_console() {}
+void unlock_console() {}
+void ignore_ctrl_c() {}
+void handle_ctrl_c() {}
+void open_console() {}
+void abort() { ::abort(); }
+
 segment::segment(cell size_, bool executable_p) {
   (void)executable_p;
   size = align(size_, wasm_page_size);

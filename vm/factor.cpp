@@ -7,6 +7,7 @@ namespace factor {
 void factor_vm::prepare_boot_image() {
 #if defined(FACTOR_WASM)
   // Interpreter path: skip native compilation.
+  set_interpreter_entry_points();
   special_objects[OBJ_STAGE2] = special_objects[OBJ_CANONICAL_TRUE];
   return;
 #endif

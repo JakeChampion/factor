@@ -7,7 +7,11 @@ bool factor_vm::fatal_erroring_p;
 static inline void fa_diddly_atal_error() {
   printf("fatal_error in fatal_error!\n");
   breakpoint();
+#if defined(FACTOR_WASM)
+  abort();
+#else
   ::_exit(86);
+#endif
 }
 
 void fatal_error(const char* msg, cell tagged) {
@@ -102,7 +106,7 @@ void factor_vm::set_memory_protection_error(cell fault_addr, cell fault_pc) {
     fatal_error("Double fault", fault_addr);
   else if (fep_p)
     fatal_error("Memory protection fault during low-level debugger", fault_addr);
-  else if (atomic::load(&current_gc_p))
+  else if (factor::atomic::load(&current_gc_p))
     fatal_error("Memory protection fault during gc", fault_addr);
   signal_fault_addr = fault_addr;
   signal_fault_pc = fault_pc;
