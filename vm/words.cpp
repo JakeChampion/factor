@@ -69,14 +69,23 @@ void factor_vm::primitive_word_code() {
   data_root<word> w(ctx->pop(), this);
   check_tagged(w);
 
+#if defined(FACTOR_WASM)
+  ctx->push(tag_fixnum(0));
+  ctx->push(tag_fixnum(0));
+#else
   ctx->push(from_unsigned_cell(w->entry_point));
   ctx->push(from_unsigned_cell((cell)w->code() + w->code()->size()));
+#endif
 }
 
 void factor_vm::primitive_word_optimized_p() {
+#if defined(FACTOR_WASM)
+  ctx->replace(false_object);
+#else
   word* w = untag_check<word>(ctx->peek());
   cell t = w->code()->type();
   ctx->replace(tag_boolean(t == CODE_BLOCK_OPTIMIZED));
+#endif
 }
 
 // Allocates memory

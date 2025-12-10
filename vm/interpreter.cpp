@@ -366,13 +366,25 @@ bool factor_vm::dispatch_subprimitive(word* w) {
     return true;
   }
 
-  // Known but unsupported subprimitives on wasm for now.
   if (name == "c-to-factor" || name == "unwind-native-frames" ||
-      name == "leaf-signal-handler" || name == "signal-handler" ||
-      name == "(set-context)" || name == "(set-context-and-delete)" ||
-      name == "(start-context)" || name == "(start-context-and-delete)") {
-    fatal_error("Subprimitive not implemented in wasm interpreter",
-                w->name);
+      name == "leaf-signal-handler" || name == "signal-handler") {
+    // No threads/signals on wasm; treat as no-ops.
+    return true;
+  }
+
+  if (name == "(set-context)" || name == "(start-context)") {
+    // Return the object unchanged; ignore context/quotation.
+    cell obj = ctx->pop();
+    ctx->pop();
+    ctx->push(obj);
+    return true;
+  }
+
+  if (name == "(set-context-and-delete)" || name == "(start-context-and-delete)") {
+    // Drop inputs; no result.
+    ctx->pop();
+    ctx->pop();
+    return true;
   }
 
   return false;

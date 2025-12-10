@@ -343,8 +343,13 @@ void factor_vm::primitive_array_to_quotation() {
 void factor_vm::primitive_quotation_code() {
   data_root<quotation> quot(ctx->pop(), this);
 
+#if defined(FACTOR_WASM)
+  ctx->push(tag_fixnum(0));
+  ctx->push(tag_fixnum(0));
+#else
   ctx->push(from_unsigned_cell(quot->entry_point));
   ctx->push(from_unsigned_cell((cell)quot->code() + quot->code()->size()));
+#endif
 }
 
 // Allocates memory
@@ -390,7 +395,12 @@ bool factor_vm::quotation_compiled_p(quotation* quot) {
 
 void factor_vm::primitive_quotation_compiled_p() {
   quotation* quot = untag_check<quotation>(ctx->pop());
+#if defined(FACTOR_WASM)
+  (void)quot;
+  ctx->push(false_object);
+#else
   ctx->push(tag_boolean(quotation_compiled_p(quot)));
+#endif
 }
 
 }
