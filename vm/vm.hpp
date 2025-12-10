@@ -680,6 +680,8 @@ struct factor_vm {
   void set_interpreter_entry_points();
   void interpret_word(cell word);
   void interpret_quotation(cell quot);
+  bool dispatch_primitive_call(byte_array* name);
+  bool dispatch_subprimitive(word* w);
 
   // safepoints
   void handle_safepoint(cell pc);

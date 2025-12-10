@@ -115,6 +115,11 @@ void unlock_console() {}
 void ignore_ctrl_c() {}
 void handle_ctrl_c() {}
 void open_console() {}
+void factor_vm::primitive_disable_ctrl_break() {}
+void factor_vm::primitive_enable_ctrl_break() {}
+void factor_vm::primitive_code_blocks() {
+  ctx->push(tag<array>(allot_array(0, false_object)));
+}
 void abort() { ::abort(); }
 void close_console() {}
 
