@@ -19,3 +19,6 @@ LIBS :=
 DLL_EXTENSION := .a
 SHARED_DLL_EXTENSION := .a
 SHARED_FLAG := -r
+
+# Disable unsupported subsystems
+DISABLE_SAMPLING_PROFILER := 1

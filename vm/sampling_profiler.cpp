@@ -2,6 +2,56 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+// Sampling profiler is not supported on wasm; provide no-op implementations.
+array* factor_vm::allot_growarr() { return allot_array(0, false_object); }
+
+void factor_vm::growarr_add(array* growarr_, cell elt_) {
+  (void)growarr_;
+  (void)elt_;
+}
+
+profiling_sample profiling_sample::record_counts() volatile {
+  profiling_sample returned(sample_count, gc_sample_count,
+                            jit_sample_count, foreign_sample_count,
+                            foreign_thread_sample_count);
+  sample_count = 0;
+  gc_sample_count = 0;
+  jit_sample_count = 0;
+  foreign_sample_count = 0;
+  foreign_thread_sample_count = 0;
+  return returned;
+}
+
+void profiling_sample::clear_counts() volatile {
+  sample_count = 0;
+  gc_sample_count = 0;
+  jit_sample_count = 0;
+  foreign_sample_count = 0;
+  foreign_thread_sample_count = 0;
+}
+
+void factor_vm::record_sample(bool prolog_p) { (void)prolog_p; }
+
+void factor_vm::set_profiling(fixnum rate) {
+  (void)rate;
+  atomic::store(&sampling_profiler_p, false);
+}
+
+void factor_vm::start_sampling_profiler(fixnum rate) {
+  (void)rate;
+  atomic::store(&sampling_profiler_p, false);
+}
+
+void factor_vm::end_sampling_profiler() { atomic::store(&sampling_profiler_p, false); }
+
+void factor_vm::primitive_set_profiling() { ctx->pop(); }
+
+void factor_vm::primitive_get_samples() { ctx->push(false_object); }
+
+#else
+
 // This is like the growable_array class, except the whole of it
 // exists on the Factor heap. growarr = growable array.
 static cell growarr_capacity(array *growarr) {
@@ -170,5 +220,7 @@ void factor_vm::primitive_get_samples() {
   }
   ctx->push(samples_array.value());
 }
+
+#endif // FACTOR_WASM
 
 }
