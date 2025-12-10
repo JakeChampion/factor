@@ -33,6 +33,10 @@ ifneq ($(strip $(WASI_SYSROOT)),)
   LDFLAGS += --sysroot=$(WASI_SYSROOT)
 endif
 
+# Drop JIT-related objects from wasm builds
+JIT_OBJS := $(BUILD_DIR)/jit.o $(BUILD_DIR)/code_heap.o $(BUILD_DIR)/inline_cache.o $(BUILD_DIR)/instruction_operands.o $(BUILD_DIR)/code_blocks.o $(BUILD_DIR)/entry_points.o
+DLL_OBJS := $(filter-out $(JIT_OBJS),$(DLL_OBJS))
+
 # Link with minimal runtime; no dlopen/pthread/rt
 LIBS :=
 DLL_EXTENSION := .a
