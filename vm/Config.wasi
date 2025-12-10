@@ -1,6 +1,19 @@
 # Experimental WASM/WASI target (interpreter-only prototype)
 WASM := 1
 
+# Try to discover a sysroot if the user didn't provide one
+WASI_SYSROOT ?= $(shell $(CXX) --target=wasm32-wasi --print-sysroot 2>/dev/null)
+ifeq ($(strip $(WASI_SYSROOT)),)
+  ifneq ($(wildcard /opt/homebrew/opt/wasi-libc/share/wasi-sysroot),)
+    WASI_SYSROOT := /opt/homebrew/opt/wasi-libc/share/wasi-sysroot
+  endif
+endif
+ifeq ($(strip $(WASI_SYSROOT)),)
+  ifneq ($(wildcard /usr/local/opt/wasi-libc/share/wasi-sysroot),)
+    WASI_SYSROOT := /usr/local/opt/wasi-libc/share/wasi-sysroot
+  endif
+endif
+
 # Platform headers/objects
 PLAF_MASTER_HEADERS += vm/os-wasm.hpp vm/cpu-wasm.hpp
 PLAF_DLL_OBJS += $(BUILD_DIR)/os-wasm.o $(BUILD_DIR)/mvm-none.o
@@ -14,7 +27,7 @@ CFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
 CXXFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
 LDFLAGS += --target=wasm32-wasi
 
-ifdef WASI_SYSROOT
+ifneq ($(strip $(WASI_SYSROOT)),)
   CFLAGS += --sysroot=$(WASI_SYSROOT)
   CXXFLAGS += --sysroot=$(WASI_SYSROOT)
   LDFLAGS += --sysroot=$(WASI_SYSROOT)
