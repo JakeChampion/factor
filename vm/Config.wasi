@@ -26,7 +26,7 @@ CC := /opt/wasi-sdk/bin/clang
 CXX := /opt/wasi-sdk/bin/clang++
 ARCHITECTURE_FLAG += --target=wasm32-wasi
 CFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
-CXXFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
+CXXFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM -fno-exceptions -fno-rtti
 LDFLAGS := --target=wasm32-wasi --sysroot=$(WASI_SYSROOT)
 
 ifneq ($(strip $(WASI_SYSROOT)),)

@@ -116,6 +116,7 @@ void ignore_ctrl_c() {}
 void handle_ctrl_c() {}
 void open_console() {}
 void abort() { ::abort(); }
+void close_console() {}
 
 segment::segment(cell size_, bool executable_p) {
   (void)executable_p;
