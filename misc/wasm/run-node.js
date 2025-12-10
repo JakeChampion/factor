@@ -10,6 +10,7 @@ const imagePath = argv[3] || 'factor.image';
 
 async function main() {
   const wasi = new WASI({
+    version: 'preview1',
     args: [wasmPath, '-image=' + imagePath],
     env,
     preopens: {
