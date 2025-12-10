@@ -304,11 +304,17 @@ code_block* factor_vm::jit_compile_quotation(cell owner_, cell quot_,
 // Allocates memory
 void factor_vm::jit_compile_quotation(cell quot_, bool relocating) {
   data_root<quotation> quot(quot_, this);
+#if defined(FACTOR_WASM)
+  (void)relocating;
+  // On wasm we will run under an interpreter; leave entry_point untouched.
+  (void)quot;
+#else
   if (!quotation_compiled_p(quot.untagged())) {
     code_block* compiled =
         jit_compile_quotation(quot.value(), quot.value(), relocating);
     quot.untagged()->entry_point = compiled->entry_point();
   }
+#endif
 }
 
 // Allocates memory
@@ -360,11 +366,16 @@ cell factor_vm::lazy_jit_compile(cell quot_) {
 
   FACTOR_ASSERT(!quotation_compiled_p(quot.untagged()));
 
+#if defined(FACTOR_WASM)
+  // Interpreter path: no JIT compilation.
+  return quot.value();
+#else
   code_block* compiled =
       jit_compile_quotation(quot.value(), quot.value(), true);
   quot.untagged()->entry_point = compiled->entry_point();
 
   return quot.value();
+#endif
 }
 
 // Allocates memory

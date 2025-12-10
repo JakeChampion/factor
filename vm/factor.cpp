@@ -5,6 +5,11 @@ namespace factor {
 // Compile code in boot image so that we can execute the startup quotation
 // Allocates memory
 void factor_vm::prepare_boot_image() {
+#if defined(FACTOR_WASM)
+  // Interpreter path: skip native compilation.
+  special_objects[OBJ_STAGE2] = special_objects[OBJ_CANONICAL_TRUE];
+  return;
+#endif
   std::cout << "*** Stage 2 early init... " << std::flush;
 
   // Compile all words.

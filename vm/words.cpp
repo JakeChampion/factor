@@ -8,6 +8,14 @@ void factor_vm::jit_compile_word(cell word_, cell def_, bool relocating) {
   data_root<word> word(word_, this);
   data_root<quotation> def(def_, this);
 
+#if defined(FACTOR_WASM)
+  (void)relocating;
+  // Interpreter path: do not compile; leave entry points to interpreter.
+  (void)word;
+  (void)def;
+  return;
+#endif
+
   // Refuse to compile this word more than once, because quot_compiled_p()
   // depends on the identity of its code block
   if (word->entry_point &&

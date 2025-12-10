@@ -164,6 +164,10 @@ ifdef CONFIG
 		$(BUILD_DIR)/words.o \
 		$(BUILD_DIR)/zstd.o
 
+ifeq ($(WASM),1)
+	DLL_OBJS := $(filter-out $(BUILD_DIR)/mvm.o,$(DLL_OBJS))
+endif
+
 	MASTER_HEADERS := $(PLAF_MASTER_HEADERS) \
 		vm/assert.hpp \
 		vm/debug.hpp \
