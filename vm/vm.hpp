@@ -678,6 +678,8 @@ struct factor_vm {
   void set_fpu_state(cell state);
   void* interpreter_entry_point();
   void set_interpreter_entry_points();
+  void interpret_word(cell word);
+  void interpret_quotation(cell quot);
 
   // safepoints
   void handle_safepoint(cell pc);

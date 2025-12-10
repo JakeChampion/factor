@@ -5,18 +5,15 @@ namespace factor {
 #if defined(FACTOR_WASM)
 
 void factor_vm::c_to_factor(cell quot) {
-  (void)quot;
-  fatal_error("c_to_factor is not supported on wasm (no callbacks/JIT)", 0);
+  interpret_quotation(quot);
 }
 
 void factor_vm::unwind_native_frames(cell quot, cell to) {
   (void)quot;
   (void)to;
-  fatal_error("unwind_native_frames is not supported on wasm", 0);
 }
 
 cell factor_vm::get_fpu_state() {
-  fatal_error("get_fpu_state is not supported on wasm", 0);
   return 0;
 }
 
