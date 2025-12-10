@@ -240,6 +240,7 @@ help:
 	@echo "linux-ppc-64"
 	@echo "linux-arm-32"
 	@echo "linux-arm-64"
+	@echo "wasi-wasm32"
 	@echo "freebsd-x86-32"
 	@echo "freebsd-x86-64"
 	@echo "macos-x86-32"
@@ -284,6 +285,9 @@ linux-arm-32:
 
 linux-arm-64:
 	$(MAKE) $(ALL) CONFIG=vm/Config.linux.arm.64
+
+wasi-wasm32:
+	$(MAKE) $(ALL) CONFIG=vm/Config.wasi
 
 linux-x86-32:
 	$(MAKE) $(ALL) CONFIG=vm/Config.linux.x86.32

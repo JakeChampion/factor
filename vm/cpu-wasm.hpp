@@ -2,6 +2,7 @@ namespace factor {
 
 // Interpreter-only path; callstack grows down from the end of the segment.
 #define CALLSTACK_BOTTOM(ctx) (ctx->callstack_seg->end)
+#define FACTOR_CPU_STRING "wasm32"
 
 inline static void flush_icache(cell start, cell len) {
   (void)start;

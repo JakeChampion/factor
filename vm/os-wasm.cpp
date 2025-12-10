@@ -61,6 +61,55 @@ void native_dlclose(void* handle) {
   fatal_error("dlclose is not available on wasm", 0);
 }
 
+void early_init() {}
+
+const char* vm_executable_path() { return "factor.wasm"; }
+
+const char* default_image_path() { return "factor.image"; }
+
+void factor_vm::c_to_factor_toplevel(cell quot) { c_to_factor(quot); }
+
+void factor_vm::init_signals() {}
+
+void factor_vm::start_sampling_profiler_timer() {}
+
+void factor_vm::end_sampling_profiler_timer() {}
+
+void dispatch_signal(void* uap, void(handler)()) {
+  (void)uap;
+  (void)handler;
+}
+
+void unix_init_signals() {}
+
+void factor_vm::init_ffi() {}
+
+void factor_vm::ffi_dlopen(dll* dll) {
+  (void)dll;
+  general_error(ERROR_FFI, false_object, false_object);
+}
+
+cell factor_vm::ffi_dlsym(dll* dll, symbol_char* symbol) {
+  (void)dll;
+  (void)symbol;
+  general_error(ERROR_FFI, false_object, false_object);
+  return 0;
+}
+
+void factor_vm::ffi_dlclose(dll* dll) { (void)dll; }
+
+void factor_vm::primitive_existsp() {
+  char* path = (char*)(untag_check<byte_array>(ctx->pop()) + 1);
+  (void)path;
+  ctx->push(tag_boolean(false));
+}
+
+bool move_file(const vm_char* path1, const vm_char* path2) {
+  (void)path1;
+  (void)path2;
+  return false;
+}
+
 segment::segment(cell size_, bool executable_p) {
   (void)executable_p;
   size = align(size_, wasm_page_size);

@@ -1,4 +1,5 @@
 # Experimental WASM/WASI target (interpreter-only prototype)
+WASM := 1
 
 # Platform headers/objects
 PLAF_MASTER_HEADERS += vm/os-wasm.hpp vm/cpu-wasm.hpp

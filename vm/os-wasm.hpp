@@ -33,8 +33,17 @@ typedef int THREADHANDLE;
 #define FACTOR_OS_STRING "wasm"
 #define ZSTD_LIB "libzstd.wasm"
 
+#define CODE_TO_FUNCTION_POINTER(code) (void)0
+#define CODE_TO_FUNCTION_POINTER_CALLBACK(vm, code) (void)0
+#define FUNCTION_CODE_POINTER(ptr) ptr
+#define FUNCTION_TOC_POINTER(ptr) ptr
+
 THREADHANDLE start_thread(void* (*start_routine)(void*), void* args);
 inline static THREADHANDLE thread_id() { return 0; }
+
+void early_init();
+const char* vm_executable_path();
+const char* default_image_path();
 
 int getpagesize();
 bool set_memory_locked(cell base, cell size, bool locked);
