@@ -2,6 +2,51 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+code_heap::code_heap(cell size) {
+  (void)size;
+  seg = NULL;
+  allocator = NULL;
+  safepoint_page = 0;
+  seh_area = NULL;
+}
+
+code_heap::~code_heap() {}
+
+void code_heap::write_barrier(code_block* compiled) { (void)compiled; }
+void code_heap::clear_remembered_set() {}
+bool code_heap::uninitialized_p(code_block* compiled) {
+  (void)compiled;
+  return false;
+}
+void code_heap::free(code_block* compiled) { (void)compiled; }
+void code_heap::flush_icache() {}
+void code_heap::set_safepoint_guard(bool locked) { (void)locked; }
+void code_heap::sweep() {}
+void code_heap::verify_all_blocks_set() {}
+code_block* code_heap::code_block_for_address(cell address) {
+  (void)address;
+  return NULL;
+}
+cell code_heap::frame_predecessor(cell frame_top) {
+  (void)frame_top;
+  return 0;
+}
+void code_heap::initialize_all_blocks_set() {}
+void factor_vm::update_code_heap_words(bool reset_inline_caches) {
+  (void)reset_inline_caches;
+}
+void factor_vm::primitive_modify_code_heap() {
+  ctx->drop();
+  ctx->drop();
+  ctx->drop();
+}
+void factor_vm::primitive_code_room() { ctx->push(false_object); }
+void factor_vm::primitive_strip_stack_traces() {}
+
+#else
+
 code_heap::code_heap(cell size) {
   if (size > ((uint64_t)1 << (sizeof(cell) * 8 - 5)))
     fatal_error("Heap too large", size);
@@ -223,5 +268,7 @@ void factor_vm::primitive_code_blocks() {
   each_code_block(code_block_accumulator);
   ctx->push(std_vector_to_array(objects));
 }
+
+#endif // FACTOR_WASM
 
 }
