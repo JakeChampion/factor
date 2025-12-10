@@ -25,15 +25,15 @@
   <pre id="log"></pre>
 
   <script type="module">
-    import { WASI } from "https://unpkg.com/@bjorn3/browser_wasi_shim@2.0.1/dist/index.js";
+    import { WASI } from "https://unpkg.com/@bjorn3/browser_wasi_shim@0.4.2/dist/index.js";
 
     const logEl = document.getElementById("log");
     const append = (msg) => { logEl.textContent += msg + "\n"; };
 
     document.getElementById("run").onclick = async () => {
       logEl.textContent = "";
-      const wasmPath = document.getElementById("wasmPath").value || "factor.wasm";
-      const imagePath = document.getElementById("imagePath").value || "factor.image";
+      const wasmPath = document.getElementById("wasmPath").value || "/factor.wasm";
+      const imagePath = document.getElementById("imagePath").value || "/factor.image";
 
       append(`Loading ${wasmPath}...`);
       const wasi = new WASI([], {
