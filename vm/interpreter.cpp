@@ -280,9 +280,10 @@ bool factor_vm::dispatch_subprimitive(word* w) {
   }
   if (name == "dupd") {
     cell top = ctx->pop();
-    cell second = ctx->peek();
-    ctx->push(top);
+    cell second = ctx->pop();
     ctx->push(second);
+    ctx->push(second);
+    ctx->push(top);
     return true;
   }
   if (name == "drop") {
@@ -617,6 +618,24 @@ bool factor_vm::dispatch_subprimitive(word* w) {
     return true;
   }
 
+  string* name_obj = untag<string>(w->name);
+  cell name_len = untag_fixnum(name_obj->length);
+  const char* raw = reinterpret_cast<const char*>(name_obj->data());
+
+  if (trace_enabled()) {
+    std::cout << "[wasm] unsupported subprimitive name='" << name
+              << "' len=" << name_len << " word=" << (void*)w
+              << " name_obj=" << (void*)w->name << " subprim_ptr="
+              << (void*)w->subprimitive << " hex=";
+    const cell dump_len = std::min<cell>(name_len, 16);
+    for (cell i = 0; i < dump_len; i++) {
+      uint8_t byte = (uint8_t)raw[i];
+      std::cout << std::hex << std::uppercase << (int)byte << " ";
+    }
+    std::cout << std::dec << std::nouppercase << std::endl;
+  }
+
+  fatal_error("Unsupported subprimitive in wasm interpreter", (cell)w);
   return false;
 }
 
