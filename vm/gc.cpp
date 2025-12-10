@@ -82,6 +82,44 @@ void factor_vm::gc(gc_op op, cell requested_size) {
   // Keep trying to GC higher and higher generations until we don't run
   // out of space in the target generation.
   for (;;) {
+#if defined(FACTOR_WASM)
+    if (gc_events)
+      current_gc->event->op = current_gc->op;
+
+    switch (current_gc->op) {
+      case COLLECT_NURSERY_OP:
+        collect_nursery();
+        break;
+      case COLLECT_AGING_OP:
+        collect_aging();
+        if (data->high_fragmentation_p()) {
+          set_current_gc_op(COLLECT_FULL_OP);
+          collect_full();
+        }
+        break;
+      case COLLECT_TO_TENURED_OP:
+        collect_to_tenured();
+        if (data->high_fragmentation_p()) {
+          set_current_gc_op(COLLECT_FULL_OP);
+          collect_full();
+        }
+        break;
+      case COLLECT_FULL_OP:
+        collect_full();
+        break;
+      case COLLECT_COMPACT_OP:
+        collect_compact();
+        break;
+      case COLLECT_GROWING_DATA_HEAP_OP:
+        collect_growing_data_heap(requested_size);
+        break;
+      default:
+        critical_error("in gc, bad GC op", current_gc->op);
+        break;
+    }
+    // On wasm we do not retry via exceptions; assume fatal if it fails.
+    break;
+#else
     try {
       if (gc_events)
         current_gc->event->op = current_gc->op;
@@ -128,6 +166,7 @@ void factor_vm::gc(gc_op op, cell requested_size) {
       // We come back here if the target generation is full.
       start_gc_again();
     }
+#endif
   }
 
   if (gc_events) {

@@ -81,7 +81,9 @@
 #define FACTOR_PPC32
 #define FACTOR_PPC
 #elif defined(__wasm32__) || defined(__EMSCRIPTEN__) || defined(__wasi__)
+#ifndef FACTOR_WASM
 #define FACTOR_WASM
+#endif
 #define FACTOR_WASM32
 #else
 #error "Unsupported architecture"

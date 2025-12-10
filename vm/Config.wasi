@@ -24,6 +24,7 @@ EXE_SUFFIX := .wasm
 # Toolchain and flags
 CC := /opt/wasi-sdk/bin/clang
 CXX := /opt/wasi-sdk/bin/clang++
+LINKER := $(AR) rcs
 ARCHITECTURE_FLAG += --target=wasm32-wasi
 CFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
 CXXFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM -fno-exceptions -fno-rtti

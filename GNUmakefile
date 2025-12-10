@@ -275,6 +275,10 @@ help:
 
 ALL = factor-executable factor-ffi-test factor-lib
 
+ifeq ($(WASM),1)
+ALL = factor-executable factor-ffi-test
+endif
+
 freebsd-x86-32:
 	$(MAKE) $(ALL) CONFIG=vm/Config.freebsd.x86.32
 
@@ -300,7 +304,7 @@ linux-arm-64:
 	$(MAKE) $(ALL) CONFIG=vm/Config.linux.arm.64
 
 wasi-wasm32:
-	$(MAKE) $(ALL) CONFIG=vm/Config.wasi
+	$(MAKE) factor-executable factor-ffi-test CONFIG=vm/Config.wasi
 
 linux-x86-32:
 	$(MAKE) $(ALL) CONFIG=vm/Config.linux.x86.32

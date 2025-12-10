@@ -220,6 +220,10 @@ void factor_vm::primitive_format_float() {
   char* fill = alien_offset(ctx->pop());
   double value = untag_float_check(ctx->peek());
   std::ostringstream localized_stream;
+#if defined(FACTOR_WASM)
+  (void)locale;
+  localized_stream.imbue(std::locale::classic());
+#else
   try {
     localized_stream.imbue(std::locale(locale));
   } catch (const runtime_error&) {
@@ -227,6 +231,7 @@ void factor_vm::primitive_format_float() {
     ctx->replace(tag<byte_array>(array));
     return;
   }
+#endif
   switch (format[0]) {
     case 'f': localized_stream << std::fixed; break;
     case 'e': localized_stream << std::scientific; break;
