@@ -42,21 +42,34 @@
       const wasmPath = document.getElementById("wasmPath").value || "factor.wasm";
       const imagePath = document.getElementById("imagePath").value || "factor.image";
 
+      const imageArg = (() => {
+        const trimmed = imagePath.startsWith("/") ? imagePath.slice(1) : imagePath;
+        const parts = trimmed.split("/");
+        return parts[parts.length - 1] || "factor.image";
+      })();
+
       append(`Loading ${wasmPath}...`);
       const wasmModule = await WebAssembly.compileStreaming(fetch(wasmPath));
 
       append(`Fetching ${imagePath} into in-memory FS...`);
       const imageData = await (await fetch(imagePath)).arrayBuffer();
 
+      // Inline hello snippet; no external script needed.
+
       const stdoutFd = ConsoleStdout.lineBuffered((line) => append(line));
       const stderrFd = ConsoleStdout.lineBuffered((line) => append(line));
       const stdinFd = new OpenFile(new File(new ArrayBuffer(0), { readonly: true }));
-      const rootDir = new PreopenDirectory(
-        ".",
-        new Map([["factor.image", new File(imageData, { readonly: true })]])
-      );
+      const files = new Map([
+        [imageArg, new File(imageData, { readonly: true })],
+      ]);
+      const rootDir = new PreopenDirectory(".", files);
 
-      const args = [wasmPath, `-image=${imagePath}`];
+      const args = [
+        wasmPath,
+        `-image=${imageArg}`,
+        "-no-user-init",
+        '-e=USING: io "Hello from wasm" print flush',
+      ];
       const env = []; // array of "KEY=value"
       const fds = [stdinFd, stdoutFd, stderrFd, rootDir];
 
@@ -67,8 +80,9 @@
           wasi_snapshot_preview1: wasi.wasiImport,
         });
         append("Starting...");
-        wasi.start(instance);
+        let a = wasi.start(instance);
         append("Finished.");
+        append(`Exit code: ${a}`);
       } catch (err) {
         append(`Error: ${err}`);
         console.error(err);
