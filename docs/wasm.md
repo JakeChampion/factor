@@ -151,7 +151,9 @@ FACTOR_WASM_TRACE=1 wasmtime run --dir /work factor.wasm -- -i=factor.image
 
 ### Known Issues
 
-None currently identified. Previous issues have been resolved:
+1. **Bootstrap `no-math-method` Error**: Bootstrap fails with `generic.math:no-math-method` error when executing `[ hashtable? ] instances` in stage1. Error occurs during iteration over heap objects, suggesting an issue with type checking in arithmetic operations or generic method dispatch. Requires investigation of `instances`/`filter` implementation or arithmetic handlers.
+
+Previous issues resolved:
 
 - ~~Stack Leak During Bootstrap~~ - **FIXED**: Stack manipulation handlers (DUP, 2DUP, OVER, 2OVER, PICK, etc.) now handled directly in trampoline instead of recursive dispatch
 

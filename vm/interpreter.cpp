@@ -4749,12 +4749,21 @@ static void print_interp_stats() {
 // ============================================================================
 // This is the heart of the non-recursive interpreter. It processes work items
 // from the global trampoline stack until empty.
+
+static uint64_t g_trampoline_iterations = 0;
+
 void factor_vm::run_trampoline() {
   init_trampoline_stack();
 
   while (!trampoline_empty()) {
     WorkItem item = trampoline_pop();
-    
+    g_trampoline_iterations++;
+
+    // Log progress periodically
+    if (g_trampoline_iterations % 100000 == 0) {
+      std::cerr << "[trampoline] iteration " << g_trampoline_iterations << std::endl;
+    }
+
     switch (item.type) {
       case WorkType::QUOTATION_CONTINUE: {
         // Continue executing a quotation from the given index
