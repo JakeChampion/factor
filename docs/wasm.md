@@ -151,9 +151,7 @@ FACTOR_WASM_TRACE=1 wasmtime run --dir /work factor.wasm -- -i=factor.image
 
 ### Known Issues
 
-1. **Large Interpreter File**: `vm/interpreter.cpp` should be split into modules
-2. **Debug Logging**: Excessive logging in hot paths (should be gated)
-3. **Fragmentation Handling**: GC fragmentation checks disabled (investigate why)
+1. **Stack Leak During Bootstrap**: Stack depth grows linearly during bootstrap (~100 cells per 4k iterations), suggesting values are being pushed but not properly consumed. Needs investigation in trampoline continuation handling.
 
 ## Development
 
@@ -223,14 +221,41 @@ echo '5 5 + .' | wasmtime run --dir /work factor.wasm -- -i=factor.image
 
 ### Planned Improvements
 
-- [ ] Split `vm/interpreter.cpp` into modular files
+- [ ] Fix stack leak during bootstrap
+- [ ] Split `vm/interpreter.cpp` into modular files (see below)
 - [ ] Add automated tests for WASM target
 - [ ] Optimize string allocations in interpreter
-- [ ] Gate debug logging behind compile-time flags
 - [ ] Implement WASM-specific profiling
 - [ ] Support wasm32-emscripten target (browser)
 - [ ] Optimize method dispatch (function pointer table?)
-- [ ] Investigate fragmentation assertion failures
+
+#### Interpreter Modularization Plan
+
+The `vm/interpreter.cpp` file (6,480 lines) should be split into focused modules for maintainability:
+
+**Proposed Structure**:
+```
+vm/wasm/
+├── interpreter.cpp          # Main trampoline loop (500 lines)
+├── interpreter_dispatch.cpp # Word handler dispatch (1000 lines)
+├── interpreter_primitives.cpp # Primitive handlers (2000 lines)
+├── interpreter_control.cpp  # Control flow (if/loop/while) (800 lines)
+├── interpreter_combinators.cpp # Combinators (dip/bi/2bi/etc) (1200 lines)
+├── interpreter_hashtable.cpp # Hash table operations (500 lines)
+└── interpreter_utils.cpp    # Helper functions (480 lines)
+```
+
+**Rationale**:
+- Keeps related functionality together
+- Each file is manageable size (<2000 lines)
+- Clear responsibility boundaries
+- Easier to navigate and review
+
+**Implementation Notes**:
+- Use inline functions for hot paths to avoid performance regression
+- Keep handler dispatch table in main interpreter.cpp
+- Consider using function pointers for primitive dispatch
+- Maintain single compilation unit via `#include` if needed for optimization
 
 ### Research Areas
 

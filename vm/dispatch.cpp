@@ -69,16 +69,6 @@ cell factor_vm::lookup_method(cell obj, cell methods) {
   cell tag = TAG(obj);
   cell method = array_nth(untag<array>(methods), tag);
 
-  // Debug: log when we get an ARRAY method for non-tuple types
-  if (TAG(method) == ARRAY_TYPE && tag != TUPLE_TYPE) {
-    static int array_method_count = 0;
-    if (++array_method_count <= 10) {
-      std::cerr << "[wasm] lookup_method: ARRAY method for tag=" << tag
-                << " (obj=0x" << std::hex << obj << std::dec << ")"
-                << " method_array_len=" << array_capacity(untag<array>(method))
-                << std::endl;
-    }
-  }
 
   if (tag == TUPLE_TYPE) {
     if (TAG(method) == ARRAY_TYPE)
@@ -89,9 +79,6 @@ cell factor_vm::lookup_method(cell obj, cell methods) {
   // For non-tuple, non-word types: if we get an ARRAY, this is predicate dispatch
   // that we can't handle in the interpreter. Look for a no-method word to return.
   if (TAG(method) == ARRAY_TYPE && tag != WORD_TYPE) {
-    std::cerr << "[wasm] lookup_method: tag=" << tag << " has ARRAY method (predicate dispatch)"
-              << " - cannot evaluate predicates, looking for no-method" << std::endl;
-
     // Predicate dispatch array structure is typically:
     // [ predicate1 method1 predicate2 method2 ... ]
     // We can't evaluate predicates, so we need to find the "no-method" word
@@ -99,8 +86,6 @@ cell factor_vm::lookup_method(cell obj, cell methods) {
     array* methods_arr = untag<array>(methods);
     if (array_capacity(methods_arr) > 0) {
       cell slot_zero = array_nth(methods_arr, 0);
-      std::cerr << "[wasm] lookup_method: methods[0] tag=" << TAG(slot_zero) << std::endl;
-
       // If slot 0 is a word, it's likely the default/no-method handler
       if (TAG(slot_zero) == WORD_TYPE) {
         return slot_zero;
@@ -108,7 +93,6 @@ cell factor_vm::lookup_method(cell obj, cell methods) {
     }
 
     // If we can't find a no-method word, this is a fatal error
-    std::cerr << "[wasm] lookup_method: FATAL - cannot find no-method handler for tag=" << tag << std::endl;
     critical_error("lookup_method: no method found and no no-method handler", method);
     return false_object;
   }
@@ -116,22 +100,6 @@ cell factor_vm::lookup_method(cell obj, cell methods) {
   // Handle predicate class dispatch for WORD_TYPE
   // This handles cases like M: tuple-class boa where tuple-class is a predicate on words
   if (TAG(method) == ARRAY_TYPE && tag == WORD_TYPE) {
-    // Debug: log when we hit this path
-    static int word_dispatch_count = 0;
-    word_dispatch_count++;
-    if (word_dispatch_count <= 5) {
-      word* obj_word = untag<word>(obj);
-      cell name_cell = obj_word->name;
-      if (TAG(name_cell) == STRING_TYPE) {
-        string* name_str = untag<string>(name_cell);
-        std::cerr << "[wasm] lookup_method WORD_TYPE with array method, word="
-                  << std::string(reinterpret_cast<const char*>(name_str->data()),
-                                 (size_t)untag_fixnum(name_str->length))
-                  << " array_len=" << array_capacity(untag<array>(method))
-                  << std::endl;
-      }
-    }
-
     // The method slot contains a decision tree for predicate classes
     // For predicates, the structure is typically an array where we need to
     // find a method that matches based on the predicate test
@@ -192,15 +160,11 @@ cell factor_vm::lookup_method(cell obj, cell methods) {
     // This word IS a tuple-class - search the predicate dispatch alist for tuple-class method
     array* alist = untag<array>(method);
     cell len = array_capacity(alist);
-    
-    if (word_dispatch_count <= 5) {
-      std::cerr << "[wasm] lookup_method: word is tuple-class, searching alist len=" << len << std::endl;
-    }
-    
+
     for (cell i = 0; i + 1 < len; i += 2) {
       cell klass = array_nth(alist, i);
       cell klass_method = array_nth(alist, i + 1);
-      
+
       // Check if klass is the "tuple-class" word
       if (TAG(klass) == WORD_TYPE) {
         word* klass_word = untag<word>(klass);
@@ -215,20 +179,11 @@ cell factor_vm::lookup_method(cell obj, cell methods) {
                 match = false;
             }
             if (match) {
-              // Found tuple-class method!
-              if (word_dispatch_count <= 5) {
-                std::cerr << "[wasm] lookup_method: found tuple-class method!" << std::endl;
-              }
               return klass_method;
             }
           }
         }
       }
-    }
-    
-    // No tuple-class method found in alist - fall through
-    if (word_dispatch_count <= 5) {
-      std::cerr << "[wasm] lookup_method: no tuple-class method found in alist" << std::endl;
     }
   }
   

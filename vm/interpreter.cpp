@@ -4805,30 +4805,6 @@ void factor_vm::run_trampoline() {
       g_current_word_name = name;
     }
     
-    if (g_trampoline_iterations % 10000000 == 0) {
-      std::cerr << "[trampoline] it=" << g_trampoline_iterations
-                << " type=" << (int)item.type
-                << " stack_size=" << g_trampoline_size
-                << " ds=" << ctx->depth() << std::endl;
-    }
-    
-    // Detailed logging before crash point
-    if (g_trampoline_iterations >= 11341900 && g_trampoline_iterations <= 11342010) {
-      std::cerr << "[DETAIL] it=" << g_trampoline_iterations
-                << " type=" << (int)item.type
-                << " ds=" << ctx->depth();
-      if (!g_current_word_name.empty()) {
-        std::cerr << " word=" << g_current_word_name;
-      }
-      if (item.type == WorkType::RESTORE_VALUES) {
-        std::cerr << " restore_count=" << (int)item.restore.count;
-      }
-      if (item.type == WorkType::PUSH_VALUE) {
-        std::cerr << " push_tag=" << TAG(item.single.value);
-      }
-      std::cerr << std::endl;
-    }
-    
     // Track max datastack
     if (ctx->depth() > g_max_datastack) {
       g_max_datastack = ctx->depth();
@@ -4968,18 +4944,6 @@ void factor_vm::run_trampoline() {
       }
       
       case WorkType::PUSH_VALUE: {
-        // Debug logging for PUSH_VALUE around the crash point
-        if (g_trampoline_iterations >= 11341940 && g_trampoline_iterations <= 11342010) {
-          std::cerr << "[PUSH_VALUE] it=" << g_trampoline_iterations 
-                    << " ds_before=" << ctx->depth()
-                    << " value_tag=" << TAG(item.single.value);
-          if (TAG(item.single.value) == WORD_TYPE) {
-            std::cerr << " value=" << word_name_string(untag<word>(item.single.value));
-          } else if (TAG(item.single.value) == TUPLE_TYPE) {
-            std::cerr << " value=" << tuple_class_name(untag<tuple>(item.single.value));
-          }
-          std::cerr << std::endl;
-        }
         ctx->push(item.single.value);
         break;
       }
@@ -4987,28 +4951,7 @@ void factor_vm::run_trampoline() {
       case WorkType::CALL_CALLABLE: {
         cell callable = item.single.value;
         cell tag = TAG(callable);
-        
-        // Debug logging for CALL_CALLABLE around the crash point
-        if (g_trampoline_iterations >= 11341940 && g_trampoline_iterations <= 11342010) {
-          std::cerr << "[CALL_CALLABLE] it=" << g_trampoline_iterations 
-                    << " ds=" << ctx->depth()
-                    << " tag=" << tag;
-          if (tag == QUOTATION_TYPE) {
-            quotation* q = untag<quotation>(callable);
-            array* arr = untag<array>(q->array);
-            cell len = array_capacity(arr);
-            std::cerr << " quot_len=" << len;
-            // Show first element if it's a word
-            if (len > 0) {
-              cell first = arr->data()[0];
-              if (TAG(first) == WORD_TYPE) {
-                std::cerr << " first=" << word_name_string(untag<word>(first));
-              }
-            }
-          }
-          std::cerr << std::endl;
-        }
-        
+
         if (tag == QUOTATION_TYPE) {
           quotation* q = untag<quotation>(callable);
           array* arr = untag<array>(q->array);
@@ -5298,20 +5241,6 @@ bool factor_vm::trampoline_dispatch_handler(int32_t handler_id) {
         cell q = ctx->pop();
         cell p = ctx->pop();
         cell x = ctx->peek();  // x stays on stack for p
-        
-        // Debug logging for bi around the crash point
-        if (g_trampoline_iterations >= 11341940 && g_trampoline_iterations <= 11342010) {
-          std::cerr << "[BI] it=" << g_trampoline_iterations 
-                    << " ds=" << ctx->depth()
-                    << " x_tag=" << TAG(x) << " p_tag=" << TAG(p) << " q_tag=" << TAG(q);
-          if (TAG(x) == WORD_TYPE) {
-            std::cerr << " x=" << word_name_string(untag<word>(x));
-          } else if (TAG(x) == TUPLE_TYPE) {
-            std::cerr << " x=" << tuple_class_name(untag<tuple>(x));
-          }
-          std::cerr << std::endl;
-        }
-        
         // Execute q with x, then p with x (reversed order for stack)
         // After p, push x for q
         // Work order: p executes, then x is pushed, then q executes

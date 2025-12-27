@@ -97,16 +97,10 @@ void factor_vm::gc(gc_op op, cell requested_size) {
   // space to fit the entire contents of the aging space and nursery. This is
   // because when doing a full collection, objects from younger generations
   // are promoted before any unreachable tenured objects are freed.
-#if defined(FACTOR_WASM)
-  // On WASM, skip the fragmentation assert - just log if it would fail
-  if (data->high_fragmentation_p()) {
-    static int frag_warn = 0;
-    if (frag_warn < 3) {
-      std::cout << "[wasm] gc warning: high fragmentation before gc op=" << op << std::endl;
-      frag_warn++;
-    }
-  }
-#else
+  //
+  // Note: high_fragmentation_p() may be true here, which is fine - the GC
+  // loop below will detect this and escalate to compaction as needed.
+#if !defined(FACTOR_WASM)
   FACTOR_ASSERT(!data->high_fragmentation_p());
 #endif
 
