@@ -76,7 +76,8 @@ INSN: ##epilogue ;
 
 INSN: ##return ;
 
-INSN: ##safepoint ;
+INSN: ##safepoint
+literal: gc-map ;
 
 INSN: ##no-tco ;
 

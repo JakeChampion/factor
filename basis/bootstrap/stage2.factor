@@ -10,6 +10,15 @@ SYMBOL: core-bootstrap-time
 
 SYMBOL: bootstrap-time
 
+CONSTANT: stage2-log-path "stage2.log"
+
+: log-stage2 ( string -- )
+    [
+        stage2-log-path utf8 <file-appender> dup [
+            [ print flush ] with-output-stream*
+        ] [ close-stream ] bi
+    ] with-scope ;
+
 : strip-encodings ( -- )
     os unix? [
         [
@@ -24,11 +33,12 @@ SYMBOL: bootstrap-time
 
 : load-component ( name -- )
     dup "* Loading the " write write " component" print
+    dup [ "* stage2 loading " prepend log-stage2 ] when
     "bootstrap." prepend require ;
 
 : load-components ( -- )
     "include" "exclude" [ get-global split-words harvest ] bi@ diff
-    [ load-component ] each ;
+    [ dup "* stage2 loading " write print load-component ] each ;
 
 : print-time ( us -- )
     1,000,000,000 /i
@@ -57,6 +67,7 @@ CONSTANT: default-components
     "math compiler threads io tools ui ui.tools unicode help handbook"
 
 [
+    "stage2: entry" log-stage2
     ! We time bootstrap
     nano-count
 
@@ -71,31 +82,49 @@ CONSTANT: default-components
 
     strip-encodings
 
+    "stage2: after strip-encodings" log-stage2
+
     (command-line) parse-command-line
+
+    "stage2: after parse-command-line" log-stage2
 
     ! Set dll paths
     os windows? [ "windows" require ] when
 
     "staging" get [
         "stage2: deployment mode" print
+        "stage2: deployment mode" log-stage2
     ] [
         "debugger" require
         "listener" require
+        "stage2: listener/debugger loaded" log-stage2
     ] if
 
     load-components
+    "stage2: after load-components" log-stage2
 
     nano-count over - core-bootstrap-time set-global
 
+    "stage2: before run-bootstrap-init" log-stage2
     run-bootstrap-init
+    "stage2: after run-bootstrap-init" log-stage2
+    "* stage2: startup quot = " write OBJ-STARTUP-QUOT special-objects get . flush
+    "stage2: before c_to_factor_toplevel" log-stage2
+    [
+        "stage2: entering startup quot" log-stage2
+        c-to-factor
+        "stage2: returned from startup quot" log-stage2
+    ] [ "stage2: error in startup quot" log-stage2 ] recover
 
     nano-count swap - bootstrap-time set-global
     print-report
+    "stage2: after print-report" log-stage2
 
     "staging" get [
         "resource:basis/bootstrap/finish-staging.factor" run-file
     ] [
         "resource:basis/bootstrap/finish-bootstrap.factor" run-file
+        "stage2: after finish-bootstrap" log-stage2
     ] if
 
     f error set-global

@@ -2,6 +2,24 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+void factor_vm::enqueue_fep() { atomic::store(&safepoint_fep_p, true); }
+
+void factor_vm::enqueue_samples(cell samples, cell pc, bool foreign_thread_p) {
+  (void)samples;
+  (void)pc;
+  (void)foreign_thread_p;
+}
+
+void factor_vm::handle_safepoint(cell pc) {
+  (void)pc;
+  faulting_p = false;
+  atomic::store(&safepoint_fep_p, false);
+}
+
+#else
+
 void factor_vm::enqueue_fep() {
   if (fep_p)
     fatal_error("Low-level debugger interrupted", 0);
@@ -57,5 +75,7 @@ void factor_vm::handle_safepoint(cell pc) {
     record_sample(prolog_p);
   }
 }
+
+#endif
 
 }

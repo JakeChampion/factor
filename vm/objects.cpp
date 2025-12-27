@@ -36,7 +36,10 @@ void factor_vm::primitive_compute_identity_hashcode() {
 
 void factor_vm::primitive_set_slot() {
   fixnum slot = untag_fixnum(ctx->pop());
-  object* obj = untag<object>(ctx->pop());
+  cell obj_cell = ctx->pop();
+  if (immediate_p(obj_cell))
+    fatal_error("set-slot: expected heap object", obj_cell);
+  object* obj = untag<object>(obj_cell);
   cell value = ctx->pop();
 
   cell* slot_ptr = &obj->slots()[slot];

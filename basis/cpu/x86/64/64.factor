@@ -116,6 +116,7 @@ M: x86.64 stack-cleanup 3drop 0 ;
 M: x86.64 %cleanup 0 assert= ;
 
 M: x86.64 %safepoint
+    drop
     0 [RIP+] EAX MOV rc-relative rel-safepoint ;
 
 M: x86.64 long-long-on-stack? f ;

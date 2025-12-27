@@ -46,6 +46,15 @@ inline cell log2(cell x) {
 #error Unsupported compiler
 #endif
 
+#elif defined(FACTOR_WASM)
+  // wasm32 backend; rely on builtin count-leading-zeros
+#if defined(__GNUC__)
+  n = (sizeof(cell) == 8) ? (63 - __builtin_clzll(x))
+                          : (31 - __builtin_clz(x));
+#else
+#error Unsupported compiler
+#endif
+
 #else
 #error Unsupported CPU
 #endif

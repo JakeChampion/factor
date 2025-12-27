@@ -2,6 +2,57 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+jit::jit(cell owner, factor_vm* vm)
+    : owner(owner, vm),
+      code(vm),
+      relocation(vm),
+      parameters(vm),
+      literals(vm),
+      computing_offset_p(false),
+      position(0),
+      offset(0),
+      parent(vm) {
+  fatal_error("JIT is not supported on wasm", 0);
+}
+
+jit::~jit() {}
+
+void jit::compute_position(cell offset_) { (void)offset_; }
+
+void jit::emit_relocation(cell relocation_template_) {
+  (void)relocation_template_;
+}
+
+void jit::emit(cell code_template_) { (void)code_template_; }
+
+void jit::emit_with_parameter(cell code_template_, cell parameter_) {
+  (void)code_template_;
+  (void)parameter_;
+}
+
+void jit::emit_with_literal(cell code_template_, cell literal_) {
+  (void)code_template_;
+  (void)literal_;
+}
+
+bool jit::emit_subprimitive(cell word_, bool tail_call_p, bool stack_frame_p) {
+  (void)word_;
+  (void)tail_call_p;
+  (void)stack_frame_p;
+  return false;
+}
+
+code_block* jit::to_code_block(code_block_type type, cell frame_size) {
+  (void)type;
+  (void)frame_size;
+  fatal_error("JIT is not supported on wasm", 0);
+  return NULL;
+}
+
+#else
+
 // Simple code generator used by:
 // - quotation compiler (quotations.cpp),
 // - megamorphic caches (dispatch.cpp),
@@ -130,5 +181,7 @@ code_block* jit::to_code_block(code_block_type type, cell frame_size) {
       owner.value(), relocation.elements.value(), parameters.elements.value(),
       literals.elements.value(), frame_size);
 }
+
+#endif // FACTOR_WASM
 
 }

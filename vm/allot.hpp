@@ -75,6 +75,19 @@ inline object* factor_vm::allot_object(cell type, cell size) {
   if (data_nursery->here + size > data_nursery->end)
     primitive_minor_gc();
 
+#if defined(FACTOR_WASM)
+  // If GC was suppressed (gc_off) and nursery is still full, allocate in tenured
+  if (data_nursery->here + size > data_nursery->end) {
+    static int tenured_fallback_count = 0;
+    if (tenured_fallback_count < 2) {  // Reduce logging
+      std::cout << "[wasm] nursery full after gc, allocating " << size
+                << " bytes in tenured" << std::endl;
+      tenured_fallback_count++;
+    }
+    return allot_large_object(type, size);
+  }
+#endif
+
   object* obj = data_nursery->allot(size);
   obj->initialize(type);
 

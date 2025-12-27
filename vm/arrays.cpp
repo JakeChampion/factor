@@ -12,7 +12,16 @@ array* factor_vm::allot_array(cell capacity, cell fill_) {
 
 // Allocates memory
 void factor_vm::primitive_array() {
+  bool trace = std::getenv("FACTOR_WASM_TRACE") != nullptr;
   cell fill = ctx->pop();
+  cell cap_raw = ctx->peek();
+  if (trace) {
+    std::cout << "[wasm] primitive_array fill=0x" << std::hex << fill
+              << " tag=" << TAG(fill) << " cap_raw=0x" << cap_raw
+              << " cap_tag=" << TAG(cap_raw) << std::dec << " cap_obj=";
+    print_obj(std::cout, cap_raw);
+    std::cout << std::endl;
+  }
   cell capacity = unbox_array_size();
   array* new_array = allot_array(capacity, fill);
   ctx->push(tag<array>(new_array));
@@ -44,16 +53,11 @@ void factor_vm::primitive_resize_array() {
 cell factor_vm::std_vector_to_array(std::vector<cell>& elements) {
 
   cell element_count = elements.size();
-  cell orig_size = data_roots.size();
-  data_roots.reserve(orig_size + element_count);
-
-  for (cell n = 0; n < element_count; n++) {
-    data_roots.push_back(&elements[n]);
-  }
-
+  bool prev_gc_off = gc_off;
+  gc_off = true; // avoid GC so vector contents stay valid while copying
   tagged<array> objects(allot_uninitialized_array<array>(element_count));
   memcpy(objects->data(), &elements[0], element_count * sizeof(cell));
-  data_roots.resize(orig_size);
+  gc_off = prev_gc_off;
   return objects.value();
 }
 

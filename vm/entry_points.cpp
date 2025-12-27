@@ -2,6 +2,59 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+void factor_vm::c_to_factor(cell quot) {
+  {
+    FILE* f = fopen("init-factor.log", "a");
+    if (f) { fprintf(f, "c_to_factor entered quot=0x%lx\n", (unsigned long)quot); fclose(f); }
+  }
+  if (std::getenv("FACTOR_WASM_TRACE"))
+    std::cout << "[wasm] c_to_factor entering" << std::endl;
+
+  // Mirror the native c-to-factor stub which swaps in the spare context
+  // while running Factor code, then restores the previous one on return.
+  context* saved_ctx = ctx;
+  if (!ctx)
+    ctx = spare_ctx;
+  {
+    FILE* f = fopen("init-factor.log", "a");
+    if (f) { fprintf(f, "c_to_factor calling interpret_quotation\n"); fclose(f); }
+  }
+  interpret_quotation(quot);
+  ctx = saved_ctx;
+}
+
+void factor_vm::unwind_native_frames(cell quot, cell to) {
+  // In WASM interpreter mode, we need to:
+  // 1. Reset the callstack to the target position
+  // 2. Execute the error handler quotation
+  // The 'to' parameter is the callstack top to unwind to
+  
+  if (std::getenv("FACTOR_WASM_TRACE")) {
+    std::cout << "[wasm] unwind_native_frames quot=0x" << std::hex << quot
+              << " to=0x" << to << std::dec << std::endl;
+  }
+  
+  // Reset callstack to target
+  ctx->callstack_top = (cell)to;
+  
+  // Clear the faulting flag since we're handling the error
+  faulting_p = false;
+  
+  // Execute the error handler quotation
+  // The error object is already on the data stack (pushed in general_error)
+  interpret_quotation(quot);
+}
+
+cell factor_vm::get_fpu_state() {
+  return 0;
+}
+
+void factor_vm::set_fpu_state(cell state) { (void)state; }
+
+#else
+
 void factor_vm::c_to_factor(cell quot) {
   // First time this is called, wrap the c-to-factor sub-primitive inside
   // of a callback stub, which saves and restores non-volatile registers
@@ -37,5 +90,7 @@ void factor_vm::set_fpu_state(cell state) {
   CODE_TO_FUNCTION_POINTER(func);
   ((set_fpu_state_func_type) func)(state);
 }
+
+#endif // FACTOR_WASM
 
 }

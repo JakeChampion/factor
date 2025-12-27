@@ -8,6 +8,14 @@ void factor_vm::jit_compile_word(cell word_, cell def_, bool relocating) {
   data_root<word> word(word_, this);
   data_root<quotation> def(def_, this);
 
+#if defined(FACTOR_WASM)
+  (void)relocating;
+  // Interpreter path: do not compile; leave entry points to interpreter.
+  (void)word;
+  (void)def;
+  return;
+#endif
+
   // Refuse to compile this word more than once, because quot_compiled_p()
   // depends on the identity of its code block
   if (word->entry_point &&
@@ -61,14 +69,23 @@ void factor_vm::primitive_word_code() {
   data_root<word> w(ctx->pop(), this);
   check_tagged(w);
 
+#if defined(FACTOR_WASM)
+  ctx->push(tag_fixnum(0));
+  ctx->push(tag_fixnum(0));
+#else
   ctx->push(from_unsigned_cell(w->entry_point));
   ctx->push(from_unsigned_cell((cell)w->code() + w->code()->size()));
+#endif
 }
 
 void factor_vm::primitive_word_optimized_p() {
+#if defined(FACTOR_WASM)
+  ctx->replace(false_object);
+#else
   word* w = untag_check<word>(ctx->peek());
   cell t = w->code()->type();
   ctx->replace(tag_boolean(t == CODE_BLOCK_OPTIMIZED));
+#endif
 }
 
 // Allocates memory

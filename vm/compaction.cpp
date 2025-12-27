@@ -2,6 +2,11 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+// Declared in interpreter.cpp - clears cached layout pointers after compaction
+extern void clear_wasm_layout_caches();
+#endif
+
 struct compaction_fixup {
   static const bool translated_code_block_map = false;
 
@@ -153,6 +158,11 @@ void factor_vm::collect_compact_impl() {
 void factor_vm::collect_compact() {
   collect_mark_impl();
   collect_compact_impl();
+
+#if defined(FACTOR_WASM)
+  // Clear cached layout pointers since objects may have moved during compaction
+  clear_wasm_layout_caches();
+#endif
 
   // Compaction did not free up enough memory. Grow the data heap.
   if (data->high_fragmentation_p()) {

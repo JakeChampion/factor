@@ -2,6 +2,45 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+instruction_operand::instruction_operand(relocation_entry rel,
+                                         code_block* compiled, cell index)
+    : rel(rel), compiled(compiled), index(index), pointer(0) {
+  (void)compiled;
+  (void)rel;
+  (void)index;
+}
+
+fixnum instruction_operand::load_value_masked(cell msb, cell lsb,
+                                              cell scaling) {
+  (void)msb;
+  (void)lsb;
+  (void)scaling;
+  return 0;
+}
+
+fixnum instruction_operand::load_value(cell relative_to) {
+  (void)relative_to;
+  return 0;
+}
+
+code_block* instruction_operand::load_code_block() { return NULL; }
+
+void instruction_operand::store_value_masked(fixnum value, cell mask,
+                                             cell lsb, cell scaling) {
+  (void)value;
+  (void)mask;
+  (void)lsb;
+  (void)scaling;
+}
+
+void instruction_operand::store_value(fixnum absolute_value) {
+  (void)absolute_value;
+}
+
+#else
+
 instruction_operand::instruction_operand(relocation_entry rel,
                                          code_block* compiled, cell index)
     : rel(rel),
@@ -100,5 +139,7 @@ void instruction_operand::store_value(fixnum absolute_value) {
       break;
   }
 }
+
+#endif // FACTOR_WASM
 
 }

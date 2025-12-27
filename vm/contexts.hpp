@@ -1,5 +1,8 @@
 namespace factor {
 
+// Forward declaration for history printing
+void print_trampoline_history();
+
 // Context object count and identifiers must be kept in sync with:
 //   core/kernel/kernel.factor
 static const cell context_object_count = 4;
@@ -58,13 +61,33 @@ struct context {
 
   void replace(cell tagged) { *(cell*)datastack = tagged; }
 
+  // Returns number of items on the data stack
+  cell depth() {
+    if (datastack < datastack_seg->start)
+      return 0;
+    return (datastack - datastack_seg->start) / sizeof(cell) + 1;
+  }
+
   cell pop() {
+#if defined(FACTOR_WASM)
+    if (datastack < datastack_seg->start) {
+      std::cerr << "[POP UNDERFLOW] datastack=" << (void*)datastack
+                << " start=" << (void*)datastack_seg->start << std::endl;
+      std::cerr << "[POP UNDERFLOW] depth()=" << depth() << std::endl;
+      print_trampoline_history();
+      fatal_error("datastack underflow", datastack);
+    }
+#endif
     cell value = peek();
     datastack -= sizeof(cell);
     return value;
   }
 
   void push(cell tagged) {
+#if defined(FACTOR_WASM)
+    if (datastack + sizeof(cell) >= datastack_seg->end)
+      fatal_error("datastack overflow", datastack);
+#endif
     datastack += sizeof(cell);
     replace(tagged);
   }

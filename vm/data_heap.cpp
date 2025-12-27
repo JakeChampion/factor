@@ -136,15 +136,32 @@ void factor_vm::primitive_data_room() {
 
 // Allocates memory
 cell factor_vm::instances(cell type) {
+#if defined(FACTOR_WASM)
+  if (wasm_debug_enabled())
+    std::cout << "[wasm] instances called, type=" << type << std::endl;
+#endif
   primitive_full_gc();
+#if defined(FACTOR_WASM)
+  if (wasm_debug_enabled())
+    std::cout << "[wasm] instances gc complete, iterating" << std::endl;
+#endif
 
-  std::vector<cell> objects;
+  growable_array objects(this);
   auto object_accumulator = [&](object* obj) {
     if (type == TYPE_COUNT || obj->type() == type)
-      objects.push_back(tag_dynamic(obj));
+      objects.add(tag_dynamic(obj));
   };
   each_object(object_accumulator);
-  return std_vector_to_array(objects);
+#if defined(FACTOR_WASM)
+  if (wasm_debug_enabled())
+    std::cout << "[wasm] instances iteration complete, trimming" << std::endl;
+#endif
+  objects.trim();
+#if defined(FACTOR_WASM)
+  if (wasm_debug_enabled())
+    std::cout << "[wasm] instances trim complete, returning" << std::endl;
+#endif
+  return objects.elements.value();
 }
 
 // Allocates memory

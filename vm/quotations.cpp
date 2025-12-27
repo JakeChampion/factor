@@ -304,11 +304,17 @@ code_block* factor_vm::jit_compile_quotation(cell owner_, cell quot_,
 // Allocates memory
 void factor_vm::jit_compile_quotation(cell quot_, bool relocating) {
   data_root<quotation> quot(quot_, this);
+#if defined(FACTOR_WASM)
+  (void)relocating;
+  // On wasm we will run under an interpreter; leave entry_point untouched.
+  (void)quot;
+#else
   if (!quotation_compiled_p(quot.untagged())) {
     code_block* compiled =
         jit_compile_quotation(quot.value(), quot.value(), relocating);
     quot.untagged()->entry_point = compiled->entry_point();
   }
+#endif
 }
 
 // Allocates memory
@@ -337,8 +343,13 @@ void factor_vm::primitive_array_to_quotation() {
 void factor_vm::primitive_quotation_code() {
   data_root<quotation> quot(ctx->pop(), this);
 
+#if defined(FACTOR_WASM)
+  ctx->push(tag_fixnum(0));
+  ctx->push(tag_fixnum(0));
+#else
   ctx->push(from_unsigned_cell(quot->entry_point));
   ctx->push(from_unsigned_cell((cell)quot->code() + quot->code()->size()));
+#endif
 }
 
 // Allocates memory
@@ -360,11 +371,16 @@ cell factor_vm::lazy_jit_compile(cell quot_) {
 
   FACTOR_ASSERT(!quotation_compiled_p(quot.untagged()));
 
+#if defined(FACTOR_WASM)
+  // Interpreter path: no JIT compilation.
+  return quot.value();
+#else
   code_block* compiled =
       jit_compile_quotation(quot.value(), quot.value(), true);
   quot.untagged()->entry_point = compiled->entry_point();
 
   return quot.value();
+#endif
 }
 
 // Allocates memory
@@ -379,7 +395,12 @@ bool factor_vm::quotation_compiled_p(quotation* quot) {
 
 void factor_vm::primitive_quotation_compiled_p() {
   quotation* quot = untag_check<quotation>(ctx->pop());
+#if defined(FACTOR_WASM)
+  (void)quot;
+  ctx->push(false_object);
+#else
   ctx->push(tag_boolean(quotation_compiled_p(quot)));
+#endif
 }
 
 }

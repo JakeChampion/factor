@@ -5,7 +5,8 @@ IN: bootstrap.io
 "bootstrap.threads" require
 
 {
-    { [ "io-backend" get ] [ "io.backend." "io-backend" get append ] }
+    { [ os name>> "wasi" = ] [ "io.backend.wasm" ] }
+    { [ "io-backend" get string? ] [ "io.backend." "io-backend" get append ] }
     { [ os unix? ] [ "io.backend.unix." os name>> append ] }
     { [ os windows? ] [ "io.backend.windows" ] }
 } cond require

@@ -103,13 +103,21 @@ ifdef CONFIG
 		CFLAGS += $(CC_OPT) $(OPTIMIZATION)
 		CXXFLAGS += $(CXX_OPT) $(OPTIMIZATION)
 		ifeq ($(IS_CLANG), 1)
+			ifneq ($(WASM),1)
 			LDFLAGS += -Wl,-x
 			PCHFLAGS = -Winvalid-pch -include-pch $(BUILD_DIR)/master.hpp.gch
+			else
+			PCHFLAGS =
+			endif
 		else
 			LDFLAGS += -Wl,-s
 			PCHFLAGS =
 		endif
 
+	endif
+
+	ifeq ($(WASM),1)
+		LDFLAGS += --target=wasm32-wasi --sysroot=$(WASI_SYSROOT)
 	endif
 
 	ifneq ($(REPRODUCIBLE), 0)
@@ -161,8 +169,13 @@ ifdef CONFIG
 		$(BUILD_DIR)/tuples.o \
 		$(BUILD_DIR)/utilities.o \
 		$(BUILD_DIR)/vm.o \
+		$(BUILD_DIR)/interpreter.o \
 		$(BUILD_DIR)/words.o \
 		$(BUILD_DIR)/zstd.o
+
+ifeq ($(WASM),1)
+	DLL_OBJS := $(filter-out $(BUILD_DIR)/mvm.o,$(DLL_OBJS))
+endif
 
 	MASTER_HEADERS := $(PLAF_MASTER_HEADERS) \
 		vm/assert.hpp \
@@ -240,6 +253,7 @@ help:
 	@echo "linux-ppc-64"
 	@echo "linux-arm-32"
 	@echo "linux-arm-64"
+	@echo "wasi-wasm32"
 	@echo "freebsd-x86-32"
 	@echo "freebsd-x86-64"
 	@echo "macos-x86-32"
@@ -260,6 +274,10 @@ help:
 	@echo "X11=1  force link with X11 libraries instead of Cocoa (only on macOS)"
 
 ALL = factor-executable factor-ffi-test factor-lib
+
+ifeq ($(WASM),1)
+ALL = factor-executable factor-ffi-test
+endif
 
 freebsd-x86-32:
 	$(MAKE) $(ALL) CONFIG=vm/Config.freebsd.x86.32
@@ -284,6 +302,9 @@ linux-arm-32:
 
 linux-arm-64:
 	$(MAKE) $(ALL) CONFIG=vm/Config.linux.arm.64
+
+wasi-wasm32:
+	$(MAKE) factor-executable factor-ffi-test CONFIG=vm/Config.wasi
 
 linux-x86-32:
 	$(MAKE) $(ALL) CONFIG=vm/Config.linux.x86.32

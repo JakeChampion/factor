@@ -12,11 +12,13 @@
 factor.image.*
 boot.*.image.*
 *.lib
+*.log
 *.o
 *.obj
 *.res
 *.s
 *.so
+*.wasm
 *~
 .#*
 .*.swm
@@ -42,3 +44,7 @@ git-id
 tags
 .zig-cache
 zig-out
+.claude/settings.local.json
+vm/*.backup-*
+vm/*.old-*
+vm/*.original

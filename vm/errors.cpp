@@ -2,12 +2,24 @@
 
 namespace factor {
 
+static bool wasm_trace_enabled_local() {
+#if defined(FACTOR_WASM)
+  return std::getenv("FACTOR_WASM_TRACE") != nullptr;
+#else
+  return false;
+#endif
+}
+
 bool factor_vm::fatal_erroring_p;
 
 static inline void fa_diddly_atal_error() {
   printf("fatal_error in fatal_error!\n");
   breakpoint();
+#if defined(FACTOR_WASM)
+  abort();
+#else
   ::_exit(86);
+#endif
 }
 
 void fatal_error(const char* msg, cell tagged) {
@@ -40,6 +52,24 @@ void factor_vm::general_error(vm_error_type error, cell arg1_, cell arg2_) {
   data_root<object> arg1(arg1_, this);
   data_root<object> arg2(arg2_, this);
 
+#if defined(FACTOR_WASM)
+  // Track error counts - only report non-IO errors (IO errors are expected during vocab loading)
+  static int io_errors = 0;
+  static int other_errors = 0;
+  
+  if (error == ERROR_IO) {
+    io_errors++;
+  } else {
+    other_errors++;
+    // Print all non-IO errors - these are potentially real bugs
+    std::cerr << "[wasm] NON-IO ERROR #" << other_errors << " type=" << error << " arg1=";
+    print_obj(std::cerr, arg1.value());
+    std::cerr << " arg2=";
+    print_obj(std::cerr, arg2.value());
+    std::cerr << std::endl;
+  }
+#endif
+
   faulting_p = true;
 
   // If we had an underflow or overflow, data or retain stack
@@ -66,7 +96,9 @@ void factor_vm::general_error(vm_error_type error, cell arg1_, cell arg2_) {
 
     // Clear the data roots since arg1 and arg2's destructors won't be
     // called.
+#if !defined(FACTOR_WASM)
     data_roots.clear();
+#endif
 
     // The unwind-native-frames subprimitive will clear faulting_p
     // if it was successfully reached.
@@ -102,7 +134,7 @@ void factor_vm::set_memory_protection_error(cell fault_addr, cell fault_pc) {
     fatal_error("Double fault", fault_addr);
   else if (fep_p)
     fatal_error("Memory protection fault during low-level debugger", fault_addr);
-  else if (atomic::load(&current_gc_p))
+  else if (factor::atomic::load(&current_gc_p))
     fatal_error("Memory protection fault during gc", fault_addr);
   signal_fault_addr = fault_addr;
   signal_fault_pc = fault_pc;

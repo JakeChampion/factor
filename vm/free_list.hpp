@@ -10,7 +10,14 @@ struct free_heap_block {
 
   cell size() const {
     cell size = header & ~7;
+#if defined(FACTOR_WASM)
+    // On WASM, return minimum alignment if size is zero to avoid infinite loops
+    if (size == 0) {
+      return data_alignment;
+    }
+#else
     FACTOR_ASSERT(size > 0);
+#endif
     return size;
   }
 
@@ -103,7 +110,23 @@ void free_list_allocator<Block>::initial_free_list(cell occupied) {
   clear_free_list();
   if (occupied != end - start) {
     free_heap_block* last_block = (free_heap_block*)(start + occupied);
-    last_block->make_free(end - (cell)last_block);
+    cell free_size = end - (cell)last_block;
+#if defined(FACTOR_WASM)
+    if (wasm_debug_enabled()) {
+      std::cout << "[wasm] initial_free_list: start=0x" << std::hex << start
+                << " end=0x" << end << " occupied=0x" << occupied
+                << " free_block=0x" << (cell)last_block << " free_size=0x" << free_size
+                << std::dec << std::endl;
+    }
+#endif
+    last_block->make_free(free_size);
+#if defined(FACTOR_WASM)
+    if (wasm_debug_enabled()) {
+      std::cout << "[wasm] initial_free_list: header after make_free=0x" << std::hex
+                << last_block->header << " free_p=" << last_block->free_p()
+                << " size=0x" << last_block->size() << std::dec << std::endl;
+    }
+#endif
     add_to_free_list(last_block);
   }
 }
@@ -298,9 +321,27 @@ template <typename Block>
 template <typename Iterator, typename Fixup>
 void free_list_allocator<Block>::iterate(Iterator& iter, Fixup fixup) {
   cell scan = this->start;
+#if defined(FACTOR_WASM) && 0  // Disabled verbose iterate logging
+  static int iterate_call_count = 0;
+  if (iterate_call_count < 5) {
+    std::cout << "[wasm] iterate: start=0x" << std::hex << this->start
+              << " end=0x" << this->end << " size=0x" << this->size
+              << std::dec << " (call #" << iterate_call_count << ")" << std::endl;
+    iterate_call_count++;
+  }
+#endif
   while (scan != this->end) {
     Block* block = (Block*)scan;
     cell size = fixup.size(block);
+#if defined(FACTOR_WASM)
+    // Skip zero-sized or implausibly sized blocks to avoid infinite loops
+    if (size == 0) {
+      size = data_alignment;
+    }
+    if (size > this->size) {
+      break;
+    }
+#endif
     if (!block->free_p())
       iter(block, size);
     scan += size;

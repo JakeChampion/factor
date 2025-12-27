@@ -44,7 +44,8 @@ load-help? off
 
         init-resource-path
 
-        "resource:basis/bootstrap/stage2.factor"
+        ! Hard-code WASM stage2 for now
+        "resource:basis/bootstrap/stage2-wasm.factor"
         dup file-exists? [
             run-file
         ] [

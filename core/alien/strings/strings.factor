@@ -66,6 +66,8 @@ M: unix native-string-encoding utf8 ;
 
 M: windows native-string-encoding utf16n ;
 
+M: wasm native-string-encoding utf8 ;
+
 : alien>native-string ( alien -- string )
     native-string-encoding alien>string ; inline
 

@@ -26,9 +26,18 @@ vm_parameters::vm_parameters() {
 #endif
 
   code_size = 96;
+#if defined(FACTOR_WASM)
+  // The wasm build runs without exception-based GC retries, so give the
+  // younger generations enough room to avoid spuriously running out of
+  // space during startup and eval callbacks.
+  young_size = 16;    // MB, applied in init_factor
+  aging_size = 128;   // MB
+  tenured_size = 512;
+#else
   young_size = sizeof(cell) / 4;
   aging_size = sizeof(cell) / 2;
   tenured_size = 24 * sizeof(cell);
+#endif
 
   max_pic_size = 3;
 
@@ -51,6 +60,15 @@ vm_parameters::~vm_parameters() {
 
 void vm_parameters::init_from_args(int argc, vm_char** argv) {
   int i = 0;
+
+#if defined(FACTOR_WASM)
+  if (wasm_debug_enabled()) {
+    std::cout << "[wasm] init_from_args: argc=" << argc << std::endl;
+    for (int j = 0; j < argc; j++) {
+      std::cout << "[wasm]   argv[" << j << "]=" << argv[j] << std::endl;
+    }
+  }
+#endif
 
   for (i = 1; i < argc; i++) {
     vm_char* arg = argv[i];
@@ -266,6 +284,8 @@ char *threadsafe_strerror(int errnum) {
 // Read an image file from disk, only done once during startup
 // This function also initializes the data and code heaps
 void factor_vm::load_image(vm_parameters* p) {
+  if (wasm_debug_enabled())
+    std::cout << "[wasm] load_image: opening '" << AS_UTF8(p->image_path) << "'" << std::endl;
 
   FILE* file = OPEN_READ(p->image_path);
   if (file == NULL) {
@@ -284,9 +304,49 @@ void factor_vm::load_image(vm_parameters* p) {
     safe_fseek(file, (off_t)footer.image_offset, SEEK_SET);
   }
 
+  // Direct test read of first 16 bytes
+#if defined(FACTOR_WASM)
+  if (wasm_debug_enabled()) {
+    unsigned char test_buf[16];
+    size_t n = fread(test_buf, 1, 16, file);
+    std::cout << "[wasm] direct fread test: n=" << n << " bytes: ";
+    for (int i = 0; i < 16; i++) {
+      std::cout << std::hex << (int)test_buf[i] << " ";
+    }
+    std::cout << std::dec << std::endl;
+    // Rewind file for actual read
+    fseek(file, 0, SEEK_SET);
+  }
+#endif
+
   image_header h;
   if (raw_fread(&h, sizeof(image_header), 1, file) != 1)
     fatal_error("Cannot read image header", 0);
+
+#if defined(FACTOR_WASM)
+  if (wasm_debug_enabled()) {
+    std::cout << "[wasm] image_header: magic=0x" << std::hex << h.magic
+              << " version=" << std::dec << h.version
+              << " expected_magic=0x" << std::hex << image_magic
+              << " expected_version=" << std::dec << image_version
+              << " sizeof(image_header)=" << sizeof(image_header)
+              << " sizeof(cell)=" << sizeof(cell)
+              << std::endl;
+    // Dump first 16 bytes of h to see raw values
+    unsigned char* hbytes = (unsigned char*)&h;
+    std::cout << "[wasm] header bytes: ";
+    for (int i = 0; i < 16; i++) {
+      std::cout << std::hex << (int)hbytes[i] << " ";
+    }
+    std::cout << std::dec << std::endl;
+    // Show field offsets
+    std::cout << "[wasm] offsets: magic=" << offsetof(image_header, magic)
+              << " version=" << offsetof(image_header, version)
+              << " data_relocation_base=" << offsetof(image_header, data_relocation_base)
+              << " data_size=" << offsetof(image_header, data_size)
+              << std::endl;
+  }
+#endif
 
   if (h.magic != image_magic)
     fatal_error("Bad image: magic number check failed", h.magic);
@@ -311,6 +371,29 @@ void factor_vm::load_image(vm_parameters* p) {
 
   cell data_offset = data->tenured->start - h.data_relocation_base;
   cell code_offset = code->allocator->start - h.code_relocation_base;
+
+#if defined(FACTOR_WASM)
+  if (wasm_debug_enabled()) {
+    std::cout << "[wasm] Image relocation:" << std::endl;
+    std::cout << "  h.data_relocation_base = 0x" << std::hex << h.data_relocation_base << std::dec << std::endl;
+    std::cout << "  h.code_relocation_base = 0x" << std::hex << h.code_relocation_base << std::dec << std::endl;
+    std::cout << "  h.data_size = 0x" << std::hex << h.data_size << " (" << std::dec << h.data_size << ")" << std::endl;
+    std::cout << "  h.code_size = 0x" << std::hex << h.code_size << " (" << std::dec << h.code_size << ")" << std::endl;
+    std::cout << "  data->tenured->start = 0x" << std::hex << data->tenured->start << std::dec << std::endl;
+    std::cout << "  code->allocator->start = 0x" << std::hex << code->allocator->start << std::dec << std::endl;
+    std::cout << "  data_offset = 0x" << std::hex << data_offset << " (" << std::dec << (int64_t)data_offset << ")" << std::endl;
+    std::cout << "  code_offset = 0x" << std::hex << code_offset << " (" << std::dec << (int64_t)code_offset << ")" << std::endl;
+    std::cout << "  sizeof(cell) = " << sizeof(cell) << std::endl;
+  
+    // Dump first few bytes of tenured heap to see if data looks correct
+    std::cout << "  First 10 words at tenured start:" << std::endl;
+    cell* tenured_ptr = (cell*)data->tenured->start;
+    for (int i = 0; i < 10; i++) {
+      std::cout << "    [" << i << "] = 0x" << std::hex << tenured_ptr[i] << std::dec << std::endl;
+    }
+  }
+#endif
+
   fixup_heaps(data_offset, code_offset);
 }
 

@@ -26,7 +26,8 @@ M: arm.64 machine-registers ( -- assoc )
         } }
     } ;
 
-M: arm.64 %safepoint ( -- )
+M: arm.64 %safepoint ( gc-map -- )
+    drop
     SAFEPOINT dup [] STR ;
 
 : loc>operand ( loc -- operand )

@@ -2,6 +2,51 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+code_heap::code_heap(cell size) {
+  (void)size;
+  seg = NULL;
+  allocator = NULL;
+  safepoint_page = 0;
+  seh_area = NULL;
+}
+
+code_heap::~code_heap() {}
+
+void code_heap::write_barrier(code_block* compiled) { (void)compiled; }
+void code_heap::clear_remembered_set() {}
+bool code_heap::uninitialized_p(code_block* compiled) {
+  (void)compiled;
+  return false;
+}
+void code_heap::free(code_block* compiled) { (void)compiled; }
+void code_heap::flush_icache() {}
+void code_heap::set_safepoint_guard(bool locked) { (void)locked; }
+void code_heap::sweep() {}
+void code_heap::verify_all_blocks_set() {}
+code_block* code_heap::code_block_for_address(cell address) {
+  (void)address;
+  return NULL;
+}
+cell code_heap::frame_predecessor(cell frame_top) {
+  (void)frame_top;
+  return 0;
+}
+void code_heap::initialize_all_blocks_set() {}
+void factor_vm::update_code_heap_words(bool reset_inline_caches) {
+  (void)reset_inline_caches;
+}
+void factor_vm::primitive_modify_code_heap() {
+  ctx->pop();
+  ctx->pop();
+  ctx->pop();
+}
+void factor_vm::primitive_code_room() { ctx->push(false_object); }
+void factor_vm::primitive_strip_stack_traces() {}
+
+#else
+
 code_heap::code_heap(cell size) {
   if (size > ((uint64_t)1 << (sizeof(cell) * 8 - 5)))
     fatal_error("Heap too large", size);
@@ -199,15 +244,15 @@ void factor_vm::primitive_strip_stack_traces() {
 
 // Allocates memory
 void factor_vm::primitive_code_blocks() {
-  std::vector<cell> objects;
+  growable_array objects(this);
   auto code_block_accumulator = [&](code_block* block, cell size) {
     (void)size;
-    objects.push_back(block->owner);
-    objects.push_back(block->parameters);
-    objects.push_back(block->relocation);
+    objects.add(block->owner);
+    objects.add(block->parameters);
+    objects.add(block->relocation);
 
-    objects.push_back(tag_fixnum(block->type()));
-    objects.push_back(tag_fixnum(block->size()));
+    objects.add(tag_fixnum(block->type()));
+    objects.add(tag_fixnum(block->size()));
 
     // Note: the entry point is always a multiple of the heap
     // alignment (16 bytes). We cannot allocate while iterating
@@ -218,10 +263,13 @@ void factor_vm::primitive_code_blocks() {
     cell entry_point = block->entry_point();
     FACTOR_ASSERT((entry_point & (data_alignment - 1)) == 0);
     FACTOR_ASSERT((entry_point & TAG_MASK) == FIXNUM_TYPE);
-    objects.push_back(entry_point);
+    objects.add(entry_point);
   };
   each_code_block(code_block_accumulator);
-  ctx->push(std_vector_to_array(objects));
+  objects.trim();
+  ctx->push(objects.elements.value());
 }
+
+#endif // FACTOR_WASM
 
 }

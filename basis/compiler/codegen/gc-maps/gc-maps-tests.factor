@@ -2,7 +2,7 @@ USING: accessors alien.c-types arrays bit-arrays byte-arrays
 classes.struct compiler.cfg compiler.cfg.instructions
 compiler.cfg.stack-frame compiler.cfg.utilities
 compiler.codegen.gc-maps compiler.codegen.relocation cpu.architecture
-cpu.x86 kernel layouts make math namespaces sequences
+cpu.wasm32 cpu.x86 kernel layouts make math namespaces sequences
 specialized-arrays system tools.test ;
 QUALIFIED: vm
 SPECIALIZED-ARRAY: uint
@@ -114,6 +114,14 @@ cpu x86.64? [
 
     fake-cpu \ cpu set
 ] when
+
+! wasm32 gc-root-offset (FRAME_RETURN_ADDRESS = 0, cell-sized slots)
+{
+    { 0 2 cell * }
+} [
+    wasm32 \ cpu set
+    T{ gc-map { gc-roots V{ 0 2 } } } gc-root-offsets
+] unit-test
 
 ! largest-spill-slot
 {
