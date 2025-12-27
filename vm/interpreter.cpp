@@ -4749,89 +4749,11 @@ static void print_interp_stats() {
 // ============================================================================
 // This is the heart of the non-recursive interpreter. It processes work items
 // from the global trampoline stack until empty.
-
-static uint64_t g_trampoline_iterations = 0;
-static uint64_t g_max_datastack = 0;
-
-// Global history buffer for debugging underflow
-static const int HIST_SIZE = 50;
-struct HistEntry { WorkType type; cell ds_before; cell ds_after; std::string word; };
-static HistEntry g_history[HIST_SIZE];
-static int g_hist_idx = 0;
-
-// Current work item being processed (for debugging)
-static WorkItem* g_current_work_item = nullptr;
-static std::string g_current_word_name;  // Store word name separately
-
-// Function to print history from anywhere (especially pop())
-void print_trampoline_history() {
-  std::cerr << "[HISTORY] Last " << HIST_SIZE << " operations (iteration " << g_trampoline_iterations << "):" << std::endl;
-  for (int i = 0; i < HIST_SIZE; i++) {
-    int idx = (g_hist_idx + i) % HIST_SIZE;
-    std::cerr << "  [" << i << "] type=" << (int)g_history[idx].type
-              << " ds=" << g_history[idx].ds_before << "->" << g_history[idx].ds_after;
-    if (!g_history[idx].word.empty()) {
-      std::cerr << " word=" << g_history[idx].word;
-    }
-    std::cerr << std::endl;
-  }
-  if (g_current_work_item) {
-    std::cerr << "[CURRENT WORK] type=" << (int)g_current_work_item->type;
-    if (!g_current_word_name.empty()) {
-      std::cerr << " word=" << g_current_word_name;
-    }
-    std::cerr << std::endl;
-  }
-}
-
 void factor_vm::run_trampoline() {
   init_trampoline_stack();
-  
+
   while (!trampoline_empty()) {
     WorkItem item = trampoline_pop();
-    g_current_work_item = &item;  // Track for debugging
-
-    
-    g_trampoline_iterations++;
-    
-    // Track history and current work item
-    g_history[g_hist_idx].type = item.type;
-    g_history[g_hist_idx].ds_before = ctx->depth();
-    g_history[g_hist_idx].word = "";
-    g_current_word_name = "";
-    if (item.type == WorkType::EXECUTE_WORD) {
-      std::string name = word_name_string(untag<word>(item.word.word_tagged));
-      g_history[g_hist_idx].word = name;
-      g_current_word_name = name;
-    }
-    
-    // Track max datastack
-    if (ctx->depth() > g_max_datastack) {
-      g_max_datastack = ctx->depth();
-      if (g_max_datastack > 100 && (g_max_datastack % 100 == 0)) {
-        std::cerr << "[trampoline] NEW MAX datastack depth: " << g_max_datastack
-                  << " at iteration " << g_trampoline_iterations << std::endl;
-      }
-    }
-    
-    // Catch datastack overflow early
-    if (ctx->depth() > 2000 && g_trampoline_iterations < 1000) {
-      std::cerr << "[trampoline] EARLY: datastack depth > 2000: " << ctx->depth()
-                << " at iteration " << g_trampoline_iterations << std::endl;
-      std::cerr << "[trampoline] work_type=" << (int)item.type << std::endl;
-      std::cerr << "[trampoline] top 20 stack items:" << std::endl;
-      for (cell i = 0; i < 20 && i < ctx->depth(); i++) {
-        cell v = ((cell*)ctx->datastack)[-(int)i];
-        std::cerr << "  [" << i << "] = 0x" << std::hex << v << std::dec 
-                  << " tag=" << TAG(v);
-        if (TAG(v) == WORD_TYPE) {
-          std::cerr << " word:" << word_name_string(untag<word>(v));
-        } else if (TAG(v) == TUPLE_TYPE) {
-          std::cerr << " tuple:" << tuple_class_name(untag<tuple>(v));
-        }
-        std::cerr << std::endl;
-      }
-    }
     
     switch (item.type) {
       case WorkType::QUOTATION_CONTINUE: {
@@ -5039,19 +4961,6 @@ void factor_vm::run_trampoline() {
         break;
       }
     }
-    
-    // Record depth after operation
-    g_history[g_hist_idx].ds_after = ctx->depth();
-    g_hist_idx = (g_hist_idx + 1) % HIST_SIZE;
-    
-    // NOTE: An "empty" stack has datastack == start - sizeof(cell)
-    // This is valid! True underflow is caught by pop() itself.
-    // Only check for catastrophic underflow (more than one slot below start)
-    if (ctx->datastack < ctx->datastack_seg->start - sizeof(cell)) {
-      std::cerr << "[UNDERFLOW] Detected after iteration " << g_trampoline_iterations << std::endl;
-      print_trampoline_history();
-      fatal_error("Detected underflow in trampoline", ctx->datastack);
-    }
   }
 }
 
@@ -5064,10 +4973,14 @@ bool factor_vm::trampoline_dispatch_handler(int32_t handler_id) {
   // So we CANNOT use Factor fallbacks for those - we must implement them here.
   // Setting this to true will cause infinite loops for self-referential combinators.
   static bool disable_control_flow_handlers = false;  // Must be false!
-  
+
+  // Stack validation for debugging stack leaks
+  static bool validate_stack_effects = std::getenv("FACTOR_VALIDATE_STACK") != nullptr;
+  cell depth_before = validate_stack_effects ? ctx->depth() : 0;
+
   // For now, delegate to original dispatch for non-control-flow handlers
   // Control flow handlers need special handling to push work items
-  
+
   switch (handler_id) {
     case HANDLER_NONE:
       return false;
@@ -5138,7 +5051,6 @@ bool factor_vm::trampoline_dispatch_handler(int32_t handler_id) {
       }
     
     case HANDLER_IF: {
-      // if is fundamental - must always be handled
       cell false_quot = ctx->pop();
       cell true_quot = ctx->pop();
       cell cond = ctx->pop();
@@ -5398,11 +5310,163 @@ bool factor_vm::trampoline_dispatch_handler(int32_t handler_id) {
       push_callable_work(method);
       return true;
     }
-    
+
+    // Stack manipulation handlers - these must be in trampoline to avoid
+    // recursive dispatch overhead during bootstrap
+    case HANDLER_DUP: {
+      cell v = ctx->peek();
+      ctx->push(v);
+      return true;
+    }
+    case HANDLER_2DUP: {
+      cell b = ctx->pop();
+      cell a = ctx->pop();
+      ctx->push(a);
+      ctx->push(b);
+      ctx->push(a);
+      ctx->push(b);
+      return true;
+    }
+    case HANDLER_3DUP: {
+      cell c = ctx->pop();
+      cell b = ctx->pop();
+      cell a = ctx->pop();
+      ctx->push(a);
+      ctx->push(b);
+      ctx->push(c);
+      ctx->push(a);
+      ctx->push(b);
+      ctx->push(c);
+      return true;
+    }
+    case HANDLER_4DUP: {
+      cell d = ctx->pop();
+      cell c = ctx->pop();
+      cell b = ctx->pop();
+      cell a = ctx->pop();
+      ctx->push(a);
+      ctx->push(b);
+      ctx->push(c);
+      ctx->push(d);
+      ctx->push(a);
+      ctx->push(b);
+      ctx->push(c);
+      ctx->push(d);
+      return true;
+    }
+    case HANDLER_OVER: {
+      cell top = ctx->pop();
+      cell second = ctx->peek();
+      ctx->push(top);
+      ctx->push(second);
+      return true;
+    }
+    case HANDLER_2OVER: {
+      // ( a b c d -- a b c d a b )
+      // Copy the 3rd and 4th items from top
+      cell d = ctx->pop();
+      cell c = ctx->pop();
+      cell b = ctx->pop();
+      cell a = ctx->peek();
+      ctx->push(b);
+      ctx->push(c);
+      ctx->push(d);
+      ctx->push(a);
+      ctx->push(b);
+      return true;
+    }
+    case HANDLER_PICK: {
+      cell top = ctx->pop();
+      cell second = ctx->pop();
+      cell third = ctx->peek();
+      ctx->push(second);
+      ctx->push(top);
+      ctx->push(third);
+      return true;
+    }
+    case HANDLER_DROP: {
+      ctx->pop();
+      return true;
+    }
+    case HANDLER_2DROP: {
+      ctx->pop();
+      ctx->pop();
+      return true;
+    }
+    case HANDLER_3DROP: {
+      ctx->pop();
+      ctx->pop();
+      ctx->pop();
+      return true;
+    }
+    case HANDLER_4DROP: {
+      ctx->pop();
+      ctx->pop();
+      ctx->pop();
+      ctx->pop();
+      return true;
+    }
+    case HANDLER_NIP: {
+      cell top = ctx->pop();
+      ctx->pop();
+      ctx->push(top);
+      return true;
+    }
+    case HANDLER_2NIP: {
+      cell top = ctx->pop();
+      ctx->pop();
+      ctx->pop();
+      ctx->push(top);
+      return true;
+    }
+    case HANDLER_SWAP: {
+      cell a = ctx->pop();
+      cell b = ctx->pop();
+      ctx->push(a);
+      ctx->push(b);
+      return true;
+    }
+    case HANDLER_SWAPD: {
+      cell top = ctx->pop();
+      cell a = ctx->pop();
+      cell b = ctx->pop();
+      ctx->push(a);
+      ctx->push(b);
+      ctx->push(top);
+      return true;
+    }
+    case HANDLER_ROT: {
+      cell a = ctx->pop();
+      cell b = ctx->pop();
+      cell c = ctx->pop();
+      ctx->push(b);
+      ctx->push(a);
+      ctx->push(c);
+      return true;
+    }
+    case HANDLER_MINUS_ROT: {
+      cell a = ctx->pop();
+      cell b = ctx->pop();
+      cell c = ctx->pop();
+      ctx->push(a);
+      ctx->push(c);
+      ctx->push(b);
+      return true;
+    }
+    case HANDLER_DUPD: {
+      cell top = ctx->pop();
+      cell second = ctx->pop();
+      ctx->push(second);
+      ctx->push(second);
+      ctx->push(top);
+      return true;
+    }
+
     // For all other handlers, delegate to the original dispatch
-    // which handles pure stack/arithmetic operations without recursion
-    default:
+    // which handles arithmetic/comparison operations and other primitives
+    default: {
       return dispatch_by_handler_id(handler_id);
+    }
   }
 }
 

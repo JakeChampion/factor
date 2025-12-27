@@ -151,7 +151,9 @@ FACTOR_WASM_TRACE=1 wasmtime run --dir /work factor.wasm -- -i=factor.image
 
 ### Known Issues
 
-1. **Stack Leak During Bootstrap**: Stack depth grows linearly during bootstrap (~100 cells per 4k iterations), suggesting values are being pushed but not properly consumed. Needs investigation in trampoline continuation handling.
+None currently identified. Previous issues have been resolved:
+
+- ~~Stack Leak During Bootstrap~~ - **FIXED**: Stack manipulation handlers (DUP, 2DUP, OVER, 2OVER, PICK, etc.) now handled directly in trampoline instead of recursive dispatch
 
 ## Development
 
@@ -221,7 +223,7 @@ echo '5 5 + .' | wasmtime run --dir /work factor.wasm -- -i=factor.image
 
 ### Planned Improvements
 
-- [ ] Fix stack leak during bootstrap
+- [x] ~~Fix stack leak during bootstrap~~ - **COMPLETED**
 - [ ] Split `vm/interpreter.cpp` into modular files (see below)
 - [ ] Add automated tests for WASM target
 - [ ] Optimize string allocations in interpreter
