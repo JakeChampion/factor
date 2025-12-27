@@ -23,7 +23,7 @@ void factor_vm::primitive_tuple_boa() {
   t->layout = layout.value();
 
   cell size = untag_fixnum(layout.untagged()->size) * sizeof(cell);
-  cell* src = (cell*)(ctx->datastack - size + sizeof(cell));
+  cell* src = (cell*)(ctx->datastack - size);
 #if defined(FACTOR_WASM)
   if (src < (cell*)ctx->datastack_seg->start) {
     fatal_error("tuple_boa: stack underflow for slots", size);
