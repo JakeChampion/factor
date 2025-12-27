@@ -12,6 +12,37 @@ array* factor_vm::allot_array(cell capacity, cell fill_) {
 
 // Allocates memory
 void factor_vm::primitive_array() {
+#if defined(FACTOR_WASM)
+  // Log stack state BEFORE popping anything
+  FILE* f = fopen("init-factor.log", "a");
+  if (f) {
+    fprintf(f, "\n=== primitive_array (<array>) ===\n");
+    fprintf(f, "Stack depth before: %ld\n", (long)ctx->depth());
+    fprintf(f, "  datastack=0x%lx start=0x%lx\n",
+            (unsigned long)ctx->datastack, (unsigned long)ctx->datastack_seg->start);
+
+    // Print stack items
+    cell depth = ctx->depth();
+    for (cell i = 0; i < depth && i < 5; i++) {
+      cell* ptr = (cell*)(ctx->datastack - i * sizeof(cell));
+      if (ptr >= (cell*)ctx->datastack_seg->start) {
+        cell val = *ptr;
+        cell tag = TAG(val);
+        fprintf(f, "  stack[%ld] = 0x%lx (tag=%ld", (long)i, (unsigned long)val, (long)tag);
+
+        if (tag == FIXNUM_TYPE) {
+          fprintf(f, " fixnum=%ld", (long)untag_fixnum(val));
+        } else if (!immediate_p(val)) {
+          const char* type_str = type_name(tag);
+          fprintf(f, " %s", type_str);
+        }
+        fprintf(f, ")\n");
+      }
+    }
+    fclose(f);
+  }
+#endif
+
   bool trace = std::getenv("FACTOR_WASM_TRACE") != nullptr;
   cell fill = ctx->pop();
   cell cap_raw = ctx->peek();
@@ -24,7 +55,29 @@ void factor_vm::primitive_array() {
   }
   cell capacity = unbox_array_size();
   array* new_array = allot_array(capacity, fill);
+
+#if defined(FACTOR_WASM)
+  f = fopen("init-factor.log", "a");
+  if (f) {
+    fprintf(f, "Created array: capacity=%ld, fill=0x%lx, array=0x%lx\n",
+            (long)capacity, (unsigned long)fill, (unsigned long)tag<array>(new_array));
+    fprintf(f, "About to push array, datastack before push=0x%lx\n",
+            (unsigned long)ctx->datastack);
+    fclose(f);
+  }
+#endif
+
   ctx->push(tag<array>(new_array));
+
+#if defined(FACTOR_WASM)
+  f = fopen("init-factor.log", "a");
+  if (f) {
+    fprintf(f, "After push: datastack=0x%lx depth=%ld\n",
+            (unsigned long)ctx->datastack, (long)ctx->depth());
+    fprintf(f, "  stack[0] (top) = 0x%lx\n", (unsigned long)ctx->peek());
+    fclose(f);
+  }
+#endif
 }
 
 // Allocates memory
