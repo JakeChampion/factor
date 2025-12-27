@@ -151,7 +151,22 @@ FACTOR_WASM_TRACE=1 wasmtime run --dir /work factor.wasm -- -i=factor.image
 
 ### Known Issues
 
-1. **Bootstrap `no-math-method` Error**: Bootstrap fails with `generic.math:no-math-method` error when executing `[ hashtable? ] instances` in stage1. Error occurs during iteration over heap objects, suggesting an issue with type checking in arithmetic operations or generic method dispatch. Requires investigation of `instances`/`filter` implementation or arithmetic handlers.
+1. **Bootstrap `no-math-method` Error**: Bootstrap fails with `generic.math:no-math-method` error during startup quotation execution.
+
+   **Root Cause**: The startup quotation (from stage1.factor) contains `[ hashtable? ] instances [ hashtables:rehash ] each` which triggers a generic math dispatch error. The `instances` word filters all heap objects, and somewhere in this process, a math operation is attempted on a `composed` quotation object.
+
+   **Investigation Findings**:
+   - Error occurs during startup quotation execution, not during image load
+   - Startup quot has 153 elements and is valid
+   - Type checking added to FIXNUM_PLUS/MINUS doesn't catch the error (not a handler issue)
+   - Error is at Factor generic dispatch level, not in VM primitives
+   - Workaround attempted: Skip hashtable rehashing in stage1-wasm-tiny.factor
+   - Issue: FACTOR_BOOTSTRAP_STAGE1 env var doesn't affect boot image creation properly
+
+   **Next Steps**:
+   - Need to properly configure boot image to use modified stage1
+   - OR fix the underlying generic.math dispatch issue for WASM
+   - OR implement a WASM-specific image loading hook to skip problematic code
 
 Previous issues resolved:
 
