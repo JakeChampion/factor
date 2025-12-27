@@ -168,17 +168,31 @@ FACTOR_WASM_TRACE=1 wasmtime run --dir /work factor.wasm -- -i=factor.image
    - Stack doesn't have enough values for tuple creation (needs 2 slots, has fewer)
    - Image loads successfully with empty startup quotation (FACTOR_OVERRIDE_STARTUP_QUOT=1)
 
-   **Investigation Findings**:
-   - Error is in vm/tuples.cpp:primitive_tuple_boa() at line 28-30
-   - Datastack pointer calculation: `src = datastack - size` goes below datastack_seg->start
-   - This suggests calling code didn't push required values before calling <tuple-boa>
-   - May be related to how startup quotation is constructed in stage1-wasm-tiny.factor
+   **Investigation Findings** (commit 5e649dfdb2):
+   - Error is in vm/tuples.cpp:primitive_tuple_boa() at line 71-78
+   - **First tuple_boa call** attempts to create a **vector** tuple (2 slots)
+   - Stack state: depth=3 before pop (layout + ??? values), depth=2 after pop
+   - Problem: After popping layout, only 1 cell remains on stack, but need 2 for vector
+   - Datastack calculation: `src = datastack - size` = 0x81bc04 - 8 = 0x81bbfc (4 bytes before start!)
+   - This is VERY early in startup quotation (before stage2 loads, likely during initialization)
+
+   **Root Cause Analysis**:
+   - The calling code is creating a vector tuple using `<tuple-boa>` primitive
+   - A vector has 2 slots: `underlying` (array) and `length` (fixnum)
+   - Correct usage: push 2 values, push layout, call <tuple-boa>
+   - Actual behavior: only 1 value on stack when <tuple-boa> is called
+   - This could be:
+     1. An `initialize` hook creating a vector incorrectly
+     2. A `require` statement loading code that creates malformed vectors
+     3. A difference in how WASM bootstrap handles vector creation vs other architectures
+     4. Missing code in stage1-wasm-tiny.factor that should push an extra value
 
    **Next Steps**:
-   - Debug which tuple creation is failing (add logging to primitive_tuple_boa)
-   - Check if stage1-wasm-tiny.factor quotation construction is correct
-   - Compare startup quotation structure with working x86 boot image
-   - Consider simplifying stage2-wasm-tiny.factor further
+   - Identify which specific code path creates this first vector (add call trace logging)
+   - Check if there's a WASM-specific issue with how initialize hooks or require work
+   - Compare stage1-wasm-tiny.factor with stage1.factor more carefully for missing initialization
+   - Consider whether vectors should be pre-initialized differently for WASM bootstrap
+   - May need to patch the startup quotation or add WASM-specific initialization code
 
 Previous issues resolved:
 - ~~no-math-method Error from Hashtable Rehashing~~ - **FIXED**: Boot image now uses stage1-wasm-tiny.factor
