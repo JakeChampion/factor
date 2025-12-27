@@ -151,25 +151,37 @@ FACTOR_WASM_TRACE=1 wasmtime run --dir /work factor.wasm -- -i=factor.image
 
 ### Known Issues
 
-1. **Bootstrap `no-math-method` Error**: Bootstrap fails with `generic.math:no-math-method` error during startup quotation execution.
+1. **Bootstrap `tuple_boa` Stack Underflow**: Bootstrap fails with `tuple_boa: stack underflow for slots: 0x8` error during startup quotation execution.
 
-   **Root Cause**: The startup quotation (from stage1.factor) contains `[ hashtable? ] instances [ hashtables:rehash ] each` which triggers a generic math dispatch error. The `instances` word filters all heap objects, and somewhere in this process, a math operation is attempted on a `composed` quotation object.
+   **Status**: ~~Partially Fixed~~ - New issue discovered
+
+   **Progress**:
+   - ✅ Fixed boot image creation to use stage1-wasm-tiny.factor for WASM (commit ad9c891fe8)
+   - ✅ stage1-file word now checks architecture and selects appropriate stage1
+   - ✅ Hashtable rehashing code successfully removed from startup quotation
+   - ❌ New error: tuple_boa primitive reports stack underflow (needs 8 bytes/2 slots)
+
+   **Root Cause** (New Issue):
+   - Boot image now correctly uses stage1-wasm-tiny.factor (no hashtable rehashing)
+   - Startup quotation has 153 elements and is structurally valid
+   - Error occurs when tuple_boa primitive is called during startup execution
+   - Stack doesn't have enough values for tuple creation (needs 2 slots, has fewer)
+   - Image loads successfully with empty startup quotation (FACTOR_OVERRIDE_STARTUP_QUOT=1)
 
    **Investigation Findings**:
-   - Error occurs during startup quotation execution, not during image load
-   - Startup quot has 153 elements and is valid
-   - Type checking added to FIXNUM_PLUS/MINUS doesn't catch the error (not a handler issue)
-   - Error is at Factor generic dispatch level, not in VM primitives
-   - Workaround attempted: Skip hashtable rehashing in stage1-wasm-tiny.factor
-   - Issue: FACTOR_BOOTSTRAP_STAGE1 env var doesn't affect boot image creation properly
+   - Error is in vm/tuples.cpp:primitive_tuple_boa() at line 28-30
+   - Datastack pointer calculation: `src = datastack - size` goes below datastack_seg->start
+   - This suggests calling code didn't push required values before calling <tuple-boa>
+   - May be related to how startup quotation is constructed in stage1-wasm-tiny.factor
 
    **Next Steps**:
-   - Need to properly configure boot image to use modified stage1
-   - OR fix the underlying generic.math dispatch issue for WASM
-   - OR implement a WASM-specific image loading hook to skip problematic code
+   - Debug which tuple creation is failing (add logging to primitive_tuple_boa)
+   - Check if stage1-wasm-tiny.factor quotation construction is correct
+   - Compare startup quotation structure with working x86 boot image
+   - Consider simplifying stage2-wasm-tiny.factor further
 
 Previous issues resolved:
-
+- ~~no-math-method Error from Hashtable Rehashing~~ - **FIXED**: Boot image now uses stage1-wasm-tiny.factor
 - ~~Stack Leak During Bootstrap~~ - **FIXED**: Stack manipulation handlers (DUP, 2DUP, OVER, 2OVER, PICK, etc.) now handled directly in trampoline instead of recursive dispatch
 
 ## Development
