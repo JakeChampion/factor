@@ -2618,8 +2618,21 @@ bool factor_vm::dispatch_by_handler_id(int32_t handler_id) {
       return true;
     }
     case HANDLER_FIXNUM_PLUS: {
-      fixnum y = untag_fixnum(ctx->pop());
-      fixnum x = untag_fixnum(ctx->pop());
+      cell y_cell = ctx->pop();
+      cell x_cell = ctx->pop();
+#if defined(FACTOR_WASM)
+      // Type check - ensure both are fixnums
+      if (TAG(y_cell) != FIXNUM_TYPE || TAG(x_cell) != FIXNUM_TYPE) {
+        std::cerr << "[FIXNUM_PLUS] Type error: x_tag=" << TAG(x_cell)
+                  << " y_tag=" << TAG(y_cell) << std::endl;
+        // Push back and return false to trigger fallback
+        ctx->push(x_cell);
+        ctx->push(y_cell);
+        return false;
+      }
+#endif
+      fixnum y = untag_fixnum(y_cell);
+      fixnum x = untag_fixnum(x_cell);
       // Use int64_t to detect overflow
       int64_t r = (int64_t)x + (int64_t)y;
       if (r > fixnum_max || r < fixnum_min) {
@@ -2633,8 +2646,19 @@ bool factor_vm::dispatch_by_handler_id(int32_t handler_id) {
       return true;
     }
     case HANDLER_FIXNUM_MINUS: {
-      fixnum y = untag_fixnum(ctx->pop());
-      fixnum x = untag_fixnum(ctx->pop());
+      cell y_cell = ctx->pop();
+      cell x_cell = ctx->pop();
+#if defined(FACTOR_WASM)
+      if (TAG(y_cell) != FIXNUM_TYPE || TAG(x_cell) != FIXNUM_TYPE) {
+        std::cerr << "[FIXNUM_MINUS] Type error: x_tag=" << TAG(x_cell)
+                  << " y_tag=" << TAG(y_cell) << std::endl;
+        ctx->push(x_cell);
+        ctx->push(y_cell);
+        return false;
+      }
+#endif
+      fixnum y = untag_fixnum(y_cell);
+      fixnum x = untag_fixnum(x_cell);
       // Use int64_t to detect overflow
       int64_t r = (int64_t)x - (int64_t)y;
       if (r > fixnum_max || r < fixnum_min) {
@@ -5471,8 +5495,29 @@ bool factor_vm::trampoline_dispatch_handler(int32_t handler_id) {
       return true;
     }
 
+    // Arithmetic handlers - added to trampoline for performance
+    case HANDLER_FIXNUM_PLUS:
+    case HANDLER_FIXNUM_MINUS:
+    case HANDLER_FIXNUM_TIMES:
+    case HANDLER_FIXNUM_MOD:
+    case HANDLER_FIXNUM_DIVI:
+    case HANDLER_FIXNUM_DIVMOD:
+    case HANDLER_FIXNUM_SHIFT:
+    case HANDLER_FIXNUM_BITAND:
+    case HANDLER_FIXNUM_BITOR:
+    case HANDLER_FIXNUM_BITXOR:
+    case HANDLER_FIXNUM_BITNOT:
+    case HANDLER_FIXNUM_LT:
+    case HANDLER_FIXNUM_LE:
+    case HANDLER_FIXNUM_GT:
+    case HANDLER_FIXNUM_GE:
+    case HANDLER_EQ:
+    case HANDLER_BOTH_FIXNUMS:
+      // These need bignum support, delegate to full implementation
+      return dispatch_by_handler_id(handler_id);
+
     // For all other handlers, delegate to the original dispatch
-    // which handles arithmetic/comparison operations and other primitives
+    // which handles other primitives and special operations
     default: {
       return dispatch_by_handler_id(handler_id);
     }
