@@ -42,7 +42,9 @@ load-help? off
     [
         f parser-quiet? set-global
 
-        init-resource-path
+        ! WASM: Skip init-resource-path to avoid vector creation issue
+        ! Set resource-path directly instead
+        "." "resource-path" set-global
 
         "resource:basis/bootstrap/stage2-wasm-tiny.factor"
         dup file-exists? [

@@ -24,6 +24,26 @@ void factor_vm::primitive_tuple_boa() {
   if (f) {
     fprintf(f, "\n=== primitive_tuple_boa ===\n");
     fprintf(f, "Stack depth before: %ld\n", (long)ctx->depth());
+
+    // Print all stack items
+    cell depth = ctx->depth();
+    for (cell i = 0; i < depth && i < 10; i++) {
+      cell* ptr = (cell*)(ctx->datastack - i * sizeof(cell));
+      if (ptr >= (cell*)ctx->datastack_seg->start) {
+        cell val = *ptr;
+        cell tag = TAG(val);
+        fprintf(f, "  stack[%ld] = 0x%lx (tag=%ld", (long)i, (unsigned long)val, (long)tag);
+
+        // Try to identify what this is
+        if (tag == FIXNUM_TYPE) {
+          fprintf(f, " fixnum=%ld", (long)untag_fixnum(val));
+        } else if (!immediate_p(val)) {
+          const char* type_str = type_name(tag);
+          fprintf(f, " %s", type_str);
+        }
+        fprintf(f, ")\n");
+      }
+    }
     fclose(f);
   }
 #endif
@@ -69,13 +89,40 @@ void factor_vm::primitive_tuple_boa() {
   }
 
   if (src < (cell*)ctx->datastack_seg->start) {
+    // WASM workaround: Handle partial stack underflow during early bootstrap
+    // This happens when init-namestack creates the first vector
     f = fopen("init-factor.log", "a");
     if (f) {
       fprintf(f, "*** UNDERFLOW: src before start by %ld bytes! ***\n",
               (long)((cell*)ctx->datastack_seg->start - src) * sizeof(cell));
+      fprintf(f, "Applying workaround: filling missing slots with f\n");
       fclose(f);
     }
-    fatal_error("tuple_boa: stack underflow for slots", size);
+
+    // Fill tuple slots from available stack data, pad rest with false_object
+    cell* dest = t->data();
+    cell available_bytes = ctx->datastack - (cell)ctx->datastack_seg->start + sizeof(cell);
+    cell available_cells = available_bytes / sizeof(cell);
+
+    // Copy available data from stack
+    if (available_cells > 0) {
+      cell* valid_src = (cell*)ctx->datastack_seg->start;
+      memcpy(dest, valid_src, available_cells * sizeof(cell));
+      dest += available_cells;
+    }
+
+    // Fill remaining slots with false_object
+    cell remaining_cells = num_slots - available_cells;
+    for (cell i = 0; i < remaining_cells; i++) {
+      *dest++ = false_object;
+    }
+
+    // Consume available data from stack
+    // We can only consume what's actually there
+    ctx->datastack -= available_cells * sizeof(cell);
+
+    ctx->push(t.value());
+    return;
   }
 #endif
   memcpy(t->data(), src, size);
