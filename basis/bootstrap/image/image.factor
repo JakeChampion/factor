@@ -543,8 +543,13 @@ M: quotation prepare-object
 PRIVATE>
 
 : stage1-file ( -- string )
-    "FACTOR_BOOTSTRAP_STAGE1" os-env
-    [ ] [ "resource:basis/bootstrap/stage1.factor" ] if* ;
+    ! WASM uses special tiny stage1 to avoid hashtable rehashing issues
+    architecture get "wasi-wasm32" = [
+        "resource:basis/bootstrap/stage1-wasm-tiny.factor"
+    ] [
+        "FACTOR_BOOTSTRAP_STAGE1" os-env
+        [ ] [ "resource:basis/bootstrap/stage1.factor" ] if*
+    ] if ;
 
 : make-image ( arch -- )
     architecture associate H{
