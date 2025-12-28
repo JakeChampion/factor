@@ -67,18 +67,8 @@ struct context {
 
   cell pop() {
 #if defined(FACTOR_WASM)
-    FILE* f = fopen("init-factor.log", "a");
-    if (f) {
-      fprintf(f, "pop: datastack=0x%lx start=0x%lx ", (unsigned long)datastack, (unsigned long)datastack_seg->start);
-      if (datastack < datastack_seg->start) {
-        fprintf(f, "UNDERFLOW BEFORE POP!\n");
-        fclose(f);
-        fatal_error("datastack underflow", datastack);
-      }
-      cell val = *(cell*)datastack;
-      fprintf(f, "val=0x%lx\n", (unsigned long)val);
-      fclose(f);
-    }
+    if (datastack < datastack_seg->start)
+      fatal_error("datastack underflow", datastack);
 #endif
     cell value = peek();
     datastack -= sizeof(cell);

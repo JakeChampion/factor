@@ -179,26 +179,9 @@ void factor_vm::primitive_context_object() {
 }
 
 void factor_vm::primitive_set_context_object() {
-#if defined(FACTOR_WASM)
-  FILE* f = fopen("init-factor.log", "a");
-  if (f) {
-    fprintf(f, "\n=== primitive_set_context_object ===\n");
-    fprintf(f, "Stack depth before: %ld\n", (long)ctx->depth());
-    fprintf(f, "  datastack=0x%lx start=0x%lx\n",
-            (unsigned long)ctx->datastack, (unsigned long)ctx->datastack_seg->start);
-    fclose(f);
-  }
-#endif
   fixnum n = untag_fixnum(ctx->pop());
   cell value = ctx->pop();
   ctx->context_objects[n] = value;
-#if defined(FACTOR_WASM)
-  f = fopen("init-factor.log", "a");
-  if (f) {
-    fprintf(f, "Set context_objects[%ld] = 0x%lx\n", (long)n, (unsigned long)value);
-    fclose(f);
-  }
-#endif
 }
 
 void factor_vm::primitive_context_object_for() {

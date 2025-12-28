@@ -276,12 +276,12 @@ template <typename Fixup> void slot_visitor<Fixup>::visit_handle(cell* handle) {
           std::cout << " gc_op=" << parent->current_gc->op;
         std::cout << std::endl;
       }
-      // During startup fixups we expect pre-relocation addresses; only treat
-      // out-of-heap pointers as fatal during an actual GC. In WASM, keep going
-      // by clearing the handle so GC doesn't chase bogus pointers.
-      // BUT: we still need to call visit_pointer to apply the fixup during startup!
+      // During startup fixups we expect pre-relocation addresses.
+      // FIX: Do NOT clear handles during GC - this was causing data loss!
+      // The previous code cleared *handle = false_object which caused stack
+      // corruption by destroying live references. Instead, just skip this handle.
       if (in_gc) {
-        *handle = false_object;
+        // Just skip - don't trace this handle but DON'T clear it
         return;
       }
       // Fall through to visit_pointer for startup fixup
