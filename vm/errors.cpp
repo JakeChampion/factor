@@ -56,7 +56,31 @@ void factor_vm::general_error(vm_error_type error, cell arg1_, cell arg2_) {
   // Track error counts - only report non-IO errors (IO errors are expected during vocab loading)
   static int io_errors = 0;
   static int other_errors = 0;
-  
+
+  // Log ALL errors to file for debugging
+  {
+    FILE* f = fopen("init-factor.log", "a");
+    if (f) {
+      static const char* error_names[] = {
+        "EXPIRED", "IO", "UNUSED", "TYPE", "DIVIDE_BY_ZERO", "SIGNAL",
+        "ARRAY_SIZE", "OUT_OF_FIXNUM_RANGE", "FFI", "UNDEFINED_SYMBOL",
+        "DATASTACK_UNDERFLOW", "DATASTACK_OVERFLOW", "RETAINSTACK_UNDERFLOW",
+        "RETAINSTACK_OVERFLOW", "CALLSTACK_UNDERFLOW", "CALLSTACK_OVERFLOW",
+        "MEMORY", "FP_TRAP", "INTERRUPT", "CALLBACK_SPACE_OVERFLOW"
+      };
+      const char* name = (error < 20) ? error_names[error] : "UNKNOWN";
+      fprintf(f, "[ERROR] type=%d (%s) arg1=0x%lx arg2=0x%lx\n",
+              error, name, (unsigned long)arg1.value(), (unsigned long)arg2.value());
+      // If it's a TYPE error, print what type was expected
+      if (error == ERROR_TYPE) {
+        fixnum expected_type = untag_fixnum(arg1.value());
+        fprintf(f, "[ERROR]   expected_type=%ld got_value_tag=%ld\n",
+                (long)expected_type, (long)TAG(arg2.value()));
+      }
+      fclose(f);
+    }
+  }
+
   if (error == ERROR_IO) {
     io_errors++;
   } else {
@@ -95,10 +119,9 @@ void factor_vm::general_error(vm_error_type error, cell arg1_, cell arg2_) {
     ctx->push(error_object);
 
     // Clear the data roots since arg1 and arg2's destructors won't be
-    // called.
-#if !defined(FACTOR_WASM)
+    // called. This is necessary on all platforms including WASM to prevent
+    // stale pointers from causing GC issues.
     data_roots.clear();
-#endif
 
     // The unwind-native-frames subprimitive will clear faulting_p
     // if it was successfully reached.

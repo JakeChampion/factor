@@ -73,6 +73,11 @@ enum WasmHandlerId : int32_t {
   HANDLER_SET_SPECIAL_OBJECT,
   HANDLER_CONTEXT_OBJECT,
   HANDLER_SET_CONTEXT_OBJECT,
+
+  // Tuple/quotation construction (300+)
+  HANDLER_CURRY = 300,
+  HANDLER_COMPOSE,
+  HANDLER_BOA,
 };
 
 // Handler ID table - maps word names to handler IDs
@@ -147,6 +152,11 @@ static const std::unordered_map<std::string_view, WasmHandlerId>& get_handler_id
     {"set-special-object", HANDLER_SET_SPECIAL_OBJECT},
     {"context-object", HANDLER_CONTEXT_OBJECT},
     {"set-context-object", HANDLER_SET_CONTEXT_OBJECT},
+
+    // Tuple/quotation construction
+    {"curry", HANDLER_CURRY},
+    {"compose", HANDLER_COMPOSE},
+    {"boa", HANDLER_BOA},
   };
   return table;
 }
@@ -263,7 +273,15 @@ struct WorkItem {
 static thread_local std::vector<WorkItem> g_work_stack;
 static thread_local bool g_in_trampoline = false;
 
+// Maximum work stack depth to prevent unbounded memory growth
+// This is a safety limit; normal Factor code shouldn't hit this
+static const size_t MAX_WORK_STACK_DEPTH = 100000;
+
 inline void trampoline_push(const WorkItem& item) {
+  if (g_work_stack.size() >= MAX_WORK_STACK_DEPTH) {
+    fatal_error("Interpreter work stack overflow - possible infinite recursion",
+                g_work_stack.size());
+  }
   g_work_stack.push_back(item);
 }
 
@@ -476,6 +494,11 @@ bool factor_vm::dispatch_by_handler_id(int32_t handler_id) {
     }
     case HANDLER_BOTH_FIXNUMS: {
       // Check if top two items are both fixnums
+      // First ensure we have at least 2 items on stack
+      if (ctx->depth() < 2) {
+        ctx->push(false_object);  // Not enough items, return false
+        return true;
+      }
       cell* sp = (cell*)ctx->datastack;
       cell a = sp[0];
       cell b = sp[-1];
@@ -529,10 +552,22 @@ bool factor_vm::dispatch_by_handler_id(int32_t handler_id) {
     case HANDLER_FIXNUM_SHIFT: {
       fixnum shift = untag_fixnum(ctx->pop());
       fixnum x = untag_fixnum(ctx->pop());
+      // Clamp shift to avoid undefined behavior (shifting by >= bit width is UB)
+      const fixnum max_shift = sizeof(fixnum) * 8 - 1;
       if (shift >= 0) {
-        ctx->push(tag_fixnum(x << shift));
+        if (shift > max_shift) {
+          ctx->push(tag_fixnum(0));  // Shifting left by too much gives 0
+        } else {
+          ctx->push(tag_fixnum(x << shift));
+        }
       } else {
-        ctx->push(tag_fixnum(x >> (-shift)));
+        fixnum neg_shift = -shift;
+        if (neg_shift > max_shift) {
+          // Arithmetic right shift - all bits shifted out, result is 0 or -1
+          ctx->push(tag_fixnum(x < 0 ? -1 : 0));
+        } else {
+          ctx->push(tag_fixnum(x >> neg_shift));
+        }
       }
       return true;
     }
@@ -564,14 +599,34 @@ bool factor_vm::dispatch_by_handler_id(int32_t handler_id) {
     case HANDLER_SLOT: {
       cell slot = untag_fixnum(ctx->pop());
       cell obj = ctx->pop();
-      ctx->push(((cell*)UNTAG(obj))[slot]);
+      object* untagged = (object*)UNTAG(obj);
+      // Bounds check: slot 0 is the header, slot 1+ are the actual slots
+      // slot_count() returns the number of scannable slots (excludes header)
+      cell max_slots = untagged->slot_count();
+      if (slot < 1 || slot > max_slots) {
+        // Out of bounds - this indicates a bug in Factor code or corruption
+        // For safety, return false_object rather than reading garbage
+        ctx->push(false_object);
+        return true;
+      }
+      ctx->push(((cell*)untagged)[slot]);
       return true;
     }
     case HANDLER_SET_SLOT: {
       cell slot = untag_fixnum(ctx->pop());
       cell obj = ctx->pop();
       cell value = ctx->pop();
-      ((cell*)UNTAG(obj))[slot] = value;
+      object* untagged = (object*)UNTAG(obj);
+      // Bounds check
+      cell max_slots = untagged->slot_count();
+      if (slot < 1 || slot > max_slots) {
+        // Out of bounds - silently ignore to prevent memory corruption
+        return true;
+      }
+      cell* slot_ptr = &((cell*)untagged)[slot];
+      *slot_ptr = value;
+      // Write barrier: required when storing a younger gen pointer into older gen
+      write_barrier(slot_ptr);
       return true;
     }
 
@@ -786,6 +841,29 @@ bool factor_vm::trampoline_dispatch_handler(int32_t handler_id) {
       return true;
     }
 
+    case HANDLER_CURRY: {
+      // curry ( obj quot -- curry )
+      // Creates a curried quotation tuple
+      // Fall back to Factor - the full curry checks callability and uses tuple-boa
+      // which we handle through primitives
+      return false;
+    }
+
+    case HANDLER_COMPOSE: {
+      // compose ( quot1 quot2 -- composed )
+      // Creates a composed quotation tuple
+      // Fall back to Factor - the full compose checks callability
+      return false;
+    }
+
+    case HANDLER_BOA: {
+      // boa ( ... layout -- tuple )
+      // Generic constructor - delegates to mega-cache-lookup
+      // Since boa is a generic word, we need to do method dispatch
+      // For now, fall back to Factor
+      return false;
+    }
+
     default:
       // Fall back to dispatch_by_handler_id for stack ops/arithmetic
       return dispatch_by_handler_id(handler_id);
@@ -800,18 +878,27 @@ void factor_vm::run_trampoline() {
   g_in_trampoline = true;
   g_vm = this;
 
+  // Only enable detailed trampoline logging with FACTOR_WASM_TRACE
+  static bool trace_trampoline = std::getenv("FACTOR_WASM_TRACE") != nullptr;
   static uint64_t iter_count = 0;
+  static size_t prev_stack = 0;
+
   while (!g_work_stack.empty()) {
     iter_count++;
-    // Log first 50 and then every 1M
-    if (iter_count <= 50 || iter_count % 1000000 == 0) {
+    size_t current_stack = g_work_stack.size();
+
+    // Only log with FACTOR_WASM_TRACE to avoid expensive file I/O in hot path
+    if (trace_trampoline &&
+        (iter_count <= 50 || iter_count % 100000 == 0 ||
+         (current_stack >= 100 && current_stack > prev_stack + 50))) {
       FILE* f = fopen("init-factor.log", "a");
       if (f) {
-        fprintf(f, "[TRAMP %llu] stack=%zu word=%s\n",
-                iter_count, g_work_stack.size(), g_last_word_name);
+        fprintf(f, "[TRAMP %llu] work_stack=%zu ds=%lu\n",
+                iter_count, current_stack, (unsigned long)ctx->depth());
         fclose(f);
       }
     }
+    prev_stack = current_stack;
     WorkItem item = g_work_stack.back();
     g_work_stack.pop_back();
 

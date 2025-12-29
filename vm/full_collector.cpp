@@ -19,12 +19,24 @@ struct full_collection_copier : no_fixup {
     #if defined(FACTOR_WASM)
     if (obj->header == 0) {
       static int zero_header_count = 0;
-      if (zero_header_count < 10) {
+      if (zero_header_count < 20) {
+        // Log to file for post-mortem analysis
+        FILE* f = fopen("gc-bad.log", "a");
+        if (f) {
+          fprintf(f, "full_gc fixup_data ZERO HEADER: ptr=0x%lx\n", (unsigned long)obj);
+          // Dump surrounding memory for context
+          cell* words = (cell*)obj;
+          for (int k = 0; k < 8 && k < 8; k++) {
+            fprintf(f, "  word[%d]=0x%lx\n", k, (unsigned long)words[k]);
+          }
+          fclose(f);
+        }
         std::cout << "[wasm] full_gc fixup_data ZERO HEADER ptr=0x" << std::hex
                   << (cell)obj << std::dec << " (skipping)" << std::endl;
         zero_header_count++;
       }
       // Return obj unchanged - we cannot safely process this
+      // This is a corruption indicator - investigate gc-bad.log
       return obj;
     }
     

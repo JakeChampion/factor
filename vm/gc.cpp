@@ -264,6 +264,13 @@ void factor_vm::gc(gc_op op, cell requested_size) {
   delete current_gc;
   current_gc = NULL;
 
+#if defined(FACTOR_WASM)
+  // Clear cached layout pointers after any GC since objects may have moved
+  // This prevents stale pointers in the layout caches from causing crashes
+  extern void clear_wasm_layout_caches();
+  clear_wasm_layout_caches();
+#endif
+
   // Check the invariant again, just in case.
   FACTOR_ASSERT(!data->high_fragmentation_p());
 }

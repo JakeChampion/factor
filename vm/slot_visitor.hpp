@@ -268,6 +268,18 @@ template <typename Fixup> void slot_visitor<Fixup>::visit_handle(cell* handle) {
     bool in_tenured = parent->data->tenured->contains_p(untagged);
     if (!in_nursery && !in_aging && !in_tenured) {
       bool in_gc = parent->current_gc != NULL;
+      // Log to file for post-mortem analysis (rate-limited)
+      static int outside_heap_count = 0;
+      if (outside_heap_count < 20) {
+        FILE* f = fopen("gc-bad.log", "a");
+        if (f) {
+          fprintf(f, "visit_handle outside heap: handle=%p tagged=0x%lx untagged=0x%lx container=0x%lx in_gc=%d\n",
+                  (void*)handle, (unsigned long)*handle, (unsigned long)untagged,
+                  (unsigned long)current_container, in_gc ? 1 : 0);
+          fclose(f);
+        }
+        outside_heap_count++;
+      }
       if (wasm_debug_enabled()) {
         std::cout << "[wasm] visit_handle outside heap tagged=0x" << std::hex
                   << *handle << " untagged=0x" << (cell)untagged
@@ -277,11 +289,9 @@ template <typename Fixup> void slot_visitor<Fixup>::visit_handle(cell* handle) {
         std::cout << std::endl;
       }
       // During startup fixups we expect pre-relocation addresses.
-      // FIX: Do NOT clear handles during GC - this was causing data loss!
-      // The previous code cleared *handle = false_object which caused stack
-      // corruption by destroying live references. Instead, just skip this handle.
+      // During GC, skip this handle to avoid following bad pointers,
+      // but don't clear it - the object may still be valid after relocation.
       if (in_gc) {
-        // Just skip - don't trace this handle but DON'T clear it
         return;
       }
       // Fall through to visit_pointer for startup fixup
@@ -318,13 +328,20 @@ void slot_visitor<Fixup>::visit_stack_elements(segment* region, cell* top) {
   if (top < start - 1 || top >= end) {
 #if defined(FACTOR_WASM)
     static int skip_stack_oob = 0;
-    if (skip_stack_oob < 10) {
+    if (skip_stack_oob < 20) {
+      // Log to file for post-mortem analysis
+      FILE* f = fopen("gc-bad.log", "a");
+      if (f) {
+        fprintf(f, "visit_stack_elements OOB: region=%p-%p top=%p\n",
+                (void*)region->start, (void*)region->end, (void*)top);
+        fclose(f);
+      }
       std::cout << "[wasm] visit_stack_elements: top out of bounds region="
                 << (void*)region->start << "-" << (void*)region->end
                 << " top=" << (void*)top << " (skipping)" << std::endl;
       skip_stack_oob++;
     }
-    return;  // Skip visiting this stack region
+    return;  // Skip visiting this stack region - better than crashing
 #else
     fatal_error("visit_stack_elements: top out of bounds", (cell)top);
 #endif
