@@ -4,7 +4,7 @@ USING: accessors arrays assocs byte-arrays classes
 classes.builtin classes.private classes.tuple
 classes.tuple.private combinators combinators.short-circuit
 combinators.smart command-line compiler.codegen.relocation
-compiler.units endian generic generic.single.private grouping
+compiler.units endian environment generic generic.single.private grouping
 hashtables hashtables.private io io.encodings.binary io.files
 io.pathnames kernel kernel.private layouts locals.types make
 math math.bitwise math.order namespaces namespaces.private
@@ -32,6 +32,7 @@ CONSTANT: image-names
         "windows-x86.32" "unix-x86.32"
         "windows-x86.64" "unix-x86.64"
         "windows-arm.64" "unix-arm.64"
+        "wasi-wasm32"
     }
 
 <PRIVATE
@@ -541,13 +542,22 @@ M: quotation prepare-object
 
 PRIVATE>
 
+: stage1-file ( -- string )
+    ! WASM uses special tiny stage1 to avoid hashtable rehashing issues
+    architecture get "wasi-wasm32" = [
+        "resource:basis/bootstrap/stage1-wasm-tiny.factor"
+    ] [
+        "FACTOR_BOOTSTRAP_STAGE1" os-env
+        [ ] [ "resource:basis/bootstrap/stage1.factor" ] if*
+    ] if ;
+
 : make-image ( arch -- )
     architecture associate H{
         { parser-quiet? f }
         { auto-use? f }
     } assoc-union! [
         H{ } clone special-objects set
-        "resource:basis/bootstrap/stage1.factor" run-file
+        stage1-file run-file
         build-image
         write-image
     ] with-variables ;

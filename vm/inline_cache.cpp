@@ -2,6 +2,47 @@
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+
+struct inline_cache_entry {};
+
+struct inline_cache {
+  inline_cache_entry* entry_for(factor_vm* vm, cell klass) {
+    (void)vm;
+    (void)klass;
+    return NULL;
+  }
+};
+
+void factor_vm::deallocate_inline_cache(cell return_address) {
+  (void)return_address;
+}
+
+void factor_vm::update_pic_count(cell type) { (void)type; }
+
+cell factor_vm::add_inline_cache_entry(cell cache_entries_, cell klass_,
+                                       cell method_) {
+  (void)klass_;
+  (void)method_;
+  return cache_entries_;
+}
+
+void factor_vm::update_pic_transitions(cell pic_size) { (void)pic_size; }
+
+cell factor_vm::inline_cache_miss(cell return_address) {
+  (void)return_address;
+  fatal_error("Inline caches not supported on wasm", 0);
+  return 0;
+}
+
+VM_C_API cell inline_cache_miss(cell return_address, factor_vm* parent) {
+  (void)return_address;
+  fatal_error("Inline caches not supported on wasm", 0);
+  return 0;
+}
+
+#else
+
 void factor_vm::deallocate_inline_cache(cell return_address) {
   // Find the call target.
   void* old_entry_point = get_call_target(return_address);
@@ -199,5 +240,7 @@ cell factor_vm::inline_cache_miss(cell return_address_) {
 VM_C_API cell inline_cache_miss(cell return_address, factor_vm* parent) {
   return parent->inline_cache_miss(return_address);
 }
+
+#endif // FACTOR_WASM
 
 }

@@ -101,6 +101,9 @@ M: vreg-insn lookup-base-pointer* 2drop f ;
 M: gc-map-insn visit-insn
     [ kill-defs ] [ gc-map>> fill-gc-map ] [ gen-uses ] 2tri ;
 
+M: ##safepoint visit-insn
+    [ kill-defs ] [ gc-map>> fill-gc-map ] [ gen-uses ] 2tri ;
+
 M: ##phi visit-insn kill-defs ;
 
 M: insn visit-insn 2drop ;

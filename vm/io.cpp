@@ -185,6 +185,11 @@ void factor_vm::primitive_fread() {
   void* buf = (void*)alien_offset(ctx->pop());
   cell size = unbox_array_size();
 
+  if (buf == NULL || file == NULL) {
+    ctx->push(from_unsigned_cell(0));
+    return;
+  }
+
   if (size == 0) {
     ctx->push(from_unsigned_cell(0));
     return;

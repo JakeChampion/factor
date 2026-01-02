@@ -232,7 +232,8 @@ HELP: ##return
 { $class-description "Instruction that returns from a procedure call." } ;
 
 HELP: ##safepoint
-{ $class-description "Instruction that inserts a safe point in the generated code." } ;
+{ $values { "insn" ##safepoint } { "gc-map" gc-map } }
+{ $description "Instruction that inserts a safe point in the generated code. Carries a GC map describing the live roots at that point." } ;
 
 HELP: ##save-context
 { $class-description "The ##save-context instructions saves the state of the data, retain and callstacks in the threads " { $link context } " struct." }

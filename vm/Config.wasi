@@ -1,0 +1,57 @@
+# Experimental WASM/WASI target (interpreter-only prototype)
+WASM := 1
+
+# WASI SDK location - can be overridden
+WASI_SDK_PATH ?= /opt/wasi-sdk
+
+# Try to discover a sysroot if the user didn't provide one
+WASI_SYSROOT ?= $(WASI_SDK_PATH)/share/wasi-sysroot
+ifeq ($(wildcard $(WASI_SYSROOT)),)
+  WASI_SYSROOT := $(shell $(CXX) --target=wasm32-wasi --print-sysroot 2>/dev/null)
+endif
+ifeq ($(strip $(WASI_SYSROOT)),)
+  ifneq ($(wildcard /opt/homebrew/opt/wasi-libc/share/wasi-sysroot),)
+    WASI_SYSROOT := /opt/homebrew/opt/wasi-libc/share/wasi-sysroot
+  endif
+endif
+ifeq ($(strip $(WASI_SYSROOT)),)
+  ifneq ($(wildcard /usr/local/opt/wasi-libc/share/wasi-sysroot),)
+    WASI_SYSROOT := /usr/local/opt/wasi-libc/share/wasi-sysroot
+  endif
+endif
+
+# Platform headers/objects
+PLAF_MASTER_HEADERS += vm/os-wasm.hpp vm/cpu-wasm.hpp
+PLAF_DLL_OBJS += $(BUILD_DIR)/os-wasm.o $(BUILD_DIR)/mvm-none.o
+PLAF_EXE_OBJS += $(BUILD_DIR)/main-unix.o
+
+EXE_SUFFIX := .wasm
+
+# Toolchain - WASI SDK is required, override any system CC/CXX
+# The system clang won't have the correct runtime libraries for WASM
+CC := $(WASI_SDK_PATH)/bin/clang
+CXX := $(WASI_SDK_PATH)/bin/clang++
+LINKER := $(AR) rcs
+ARCHITECTURE_FLAG += --target=wasm32-wasi
+CFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM
+CXXFLAGS += --target=wasm32-wasi -fvisibility=hidden -DFACTOR_WASM -fno-exceptions -fno-rtti
+LDFLAGS := --target=wasm32-wasi --sysroot=$(WASI_SYSROOT)
+
+ifneq ($(strip $(WASI_SYSROOT)),)
+  CFLAGS += --sysroot=$(WASI_SYSROOT)
+  CXXFLAGS += --sysroot=$(WASI_SYSROOT)
+  LDFLAGS += --sysroot=$(WASI_SYSROOT)
+endif
+
+# Increase shadow stack size from default ~112KB to 8MB for deep interpreter recursion
+LDFLAGS += -Wl,-z,stack-size=8388608
+
+
+# Link with minimal runtime; no dlopen/pthread/rt
+LIBS := -lc++ -lc++abi -lc -lm
+DLL_EXTENSION := .a
+SHARED_DLL_EXTENSION := .a
+SHARED_FLAG := -r
+
+# Disable unsupported subsystems
+DISABLE_SAMPLING_PROFILER := 1

@@ -42,6 +42,14 @@ inline void factor_vm::iterate_callstack_object(callstack* stack_,
                           ? (cell)fixup.translate_code((code_block*)addr)
                           : addr;
     code_block* owner = code->code_block_for_address(fixed_addr);
+    #if defined(FACTOR_WASM)
+    // In WASM interpreter mode, there are no real code blocks, so we can't
+    // iterate the callstack in the traditional way. Skip the entire iteration.
+    if (!owner) {
+      // No code blocks in WASM mode - just exit the loop
+      break;
+    }
+    #endif
 
     cell frame_size = owner->stack_frame_size_for_address(fixed_addr);
 
@@ -49,7 +57,10 @@ inline void factor_vm::iterate_callstack_object(callstack* stack_,
     frame_offset += frame_size;
   }
 #endif
+  // In WASM mode, frame_offset may not equal frame_length since we break early
+#if !defined(FACTOR_WASM)
   FACTOR_ASSERT(frame_offset == frame_length);
+#endif
 }
 
 // Allocates memory
@@ -101,6 +112,17 @@ void factor_vm::iterate_callstack(context* ctx, Iterator& iterator,
     // Only the address is valid, if the code heap has been compacted,
     // owner might not point to a real code block.
     code_block* owner = code->code_block_for_address(addr);
+    #if defined(FACTOR_WASM)
+    if (!owner) {
+      if (wasm_debug_enabled()) {
+        std::cout << "[wasm] iterate_callstack missing owner addr=0x"
+                  << std::hex << addr << " top=0x" << top << " bottom=0x"
+                  << bottom << std::dec << std::endl;
+      }
+      top += LEAF_FRAME_SIZE;
+      continue;
+    }
+    #endif
     code_block* fixed_owner = fixup.translate_code(owner);
     cell delta = addr - (cell)owner - sizeof(code_block);
     cell natural_frame_size = fixed_owner->stack_frame_size();

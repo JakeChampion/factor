@@ -233,7 +233,8 @@ HELP: %replace-imm
 } ;
 
 HELP: %safepoint
-{ $description "Emits a safe point to the current code sequence being generated." }
+{ $values { "gc-map" gc-map } }
+{ $description "Emits a safe point with an accompanying GC map to the current code sequence being generated." }
 { $examples { $unchecked-example $[ ex-%safepoint ] } } ;
 
 HELP: %save-context

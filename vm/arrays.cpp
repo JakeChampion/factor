@@ -44,16 +44,11 @@ void factor_vm::primitive_resize_array() {
 cell factor_vm::std_vector_to_array(std::vector<cell>& elements) {
 
   cell element_count = elements.size();
-  cell orig_size = data_roots.size();
-  data_roots.reserve(orig_size + element_count);
-
-  for (cell n = 0; n < element_count; n++) {
-    data_roots.push_back(&elements[n]);
-  }
-
+  bool prev_gc_off = gc_off;
+  gc_off = true; // avoid GC so vector contents stay valid while copying
   tagged<array> objects(allot_uninitialized_array<array>(element_count));
   memcpy(objects->data(), &elements[0], element_count * sizeof(cell));
-  data_roots.resize(orig_size);
+  gc_off = prev_gc_off;
   return objects.value();
 }
 

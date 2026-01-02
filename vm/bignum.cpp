@@ -1757,8 +1757,8 @@ bignum* factor_vm::bignum_gcd(bignum* a_, bignum* b_) {
     if (d.untagged() == BIGNUM_OUT_OF_BAND) {
       return d.untagged();
     }
-    ac = bc;
-    bc = d;
+    ac.set_value(bc.value());
+    bc.set_value(d.value());
   }
   return ac.untagged();
 }
@@ -1783,7 +1783,7 @@ bignum* factor_vm::bignum_gcd(bignum* a_, bignum* b_) {
   scan_c = BIGNUM_START_PTR(c);
   while (scan_a < a_end)
     (*scan_c++) = (*scan_a++);
-  a = c;
+  a.set_value(c.value());
   size_b = BIGNUM_LENGTH(b);
   data_root<bignum> d(allot_bignum(size_b, 0), this);
   scan_b = BIGNUM_START_PTR(b);
@@ -1791,7 +1791,7 @@ bignum* factor_vm::bignum_gcd(bignum* a_, bignum* b_) {
   scan_d = BIGNUM_START_PTR(d);
   while (scan_b < b_end)
     (*scan_d++) = (*scan_b++);
-  b = d;
+  b.set_value(d.value());
 
   // Initial reduction: make sure that 0 <= b <= a.
   if (bignum_compare(a.untagged(), b.untagged()) == BIGNUM_COMPARISON_LESS) {

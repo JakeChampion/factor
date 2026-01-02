@@ -2,6 +2,10 @@ using namespace std;
 
 namespace factor {
 
+#if defined(FACTOR_WASM)
+typedef void (*trampoline_root_visitor)(cell* handle, void* ctx);
+#endif
+
 typedef void (*c_to_factor_func_type)(cell quot);
 typedef void (*unwind_native_frames_func_type)(cell quot, cell to);
 typedef cell (*get_fpu_state_func_type)();
@@ -286,7 +290,34 @@ struct factor_vm {
   template <typename Generation, typename Iterator>
   inline void each_object(Generation* gen, Iterator& iterator) {
     cell obj = gen->first_object();
+#if defined(FACTOR_WASM)
+    cell valid_end = gen->start + data->tenured->occupied_space(); // approximate valid data boundary
+    if (wasm_debug_enabled()) {
+      static int each_obj_count = 0;
+      if (each_obj_count < 1) {  // Only log once
+        std::cout << "[wasm] each_object: start=0x" << std::hex << gen->start
+                  << " end=0x" << gen->end << " first_obj=0x" << obj
+                  << " valid_end(approx)=0x" << valid_end << std::dec << std::endl;
+        each_obj_count++;
+      }
+    }
+#endif
     while (obj) {
+#if defined(FACTOR_WASM)
+      // Bounds check
+      if (obj < gen->start || obj >= gen->end) {
+        if (wasm_debug_enabled()) {
+          static int oob_count = 0;
+          if (oob_count < 2) {
+            std::cout << "[wasm] each_object: obj 0x" << std::hex << obj
+                      << " out of bounds [0x" << gen->start << ", 0x" << gen->end
+                      << "), stopping" << std::dec << std::endl;
+            oob_count++;
+          }
+        }
+        break;
+      }
+#endif
       iterator((object*)obj);
       obj = gen->next_object_after(obj);
     }
@@ -676,6 +707,19 @@ struct factor_vm {
   void unwind_native_frames(cell quot, cell to);
   cell get_fpu_state();
   void set_fpu_state(cell state);
+  void* interpreter_entry_point();
+  void set_interpreter_entry_points();
+  void interpret_word(cell word);
+  void interpret_word_recursive(cell word);
+  void interpret_quotation(cell quot);
+  void interpret_quotation_recursive(cell quot);
+  void call_callable(cell callable);
+  void run_trampoline();
+  bool trampoline_dispatch_handler(int32_t handler_id);
+  bool interpret_special_word(const std::string& name);
+  bool dispatch_primitive_call(byte_array* name);
+  bool dispatch_subprimitive(const std::string& name);
+  bool dispatch_by_handler_id(int32_t handler_id);
 
   // safepoints
   void handle_safepoint(cell pc);

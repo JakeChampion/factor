@@ -23,9 +23,12 @@ void factor_vm::primitive_tuple_boa() {
   t->layout = layout.value();
 
   cell size = untag_fixnum(layout.untagged()->size) * sizeof(cell);
-  memcpy(t->data(), (cell*)(ctx->datastack - size + sizeof(cell)), size);
-  ctx->datastack -= size;
+  // CRITICAL: datastack points AT top element, not past it!
+  // So to get N items, we need: datastack - (N-1)*sizeof(cell) = datastack - size + sizeof(cell)
+  cell* src = (cell*)(ctx->datastack - size + sizeof(cell));
 
+  memcpy(t->data(), src, size);
+  ctx->datastack -= size;
   ctx->push(t.value());
 }
 

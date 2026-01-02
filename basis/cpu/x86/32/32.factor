@@ -209,6 +209,7 @@ M: x86.32 %cleanup
     [ ESP swap SUB ] unless-zero ;
 
 M: x86.32 %safepoint
+    drop
     0 EAX MOVABS rc-absolute rel-safepoint ;
 
 M: x86.32 dummy-stack-params? f ;

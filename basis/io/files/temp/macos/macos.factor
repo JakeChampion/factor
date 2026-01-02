@@ -1,7 +1,7 @@
 ! Copyright (C) 2012 Joe Groff.
 ! See https://factorcode.org/license.txt for BSD license.
 USING: alien.c-types alien.syntax cocoa.plists cocoa.runtime
-cocoa.types core-foundation.strings io.files io.files.temp
+cocoa.types core-foundation.strings environment io.files io.files.temp
 io.pathnames kernel sequences system ;
 IN: io.files.temp.macos
 
@@ -35,5 +35,6 @@ M: macos default-temp-directory
     NSTemporaryDirectory CF>string factor-bundle-subdir ;
 
 M: macos default-cache-directory
-    NSCachesDirectory NSUserDomainMask 1 NSSearchPathForDirectoriesInDomains
-    plist> first-existing [ call-next-method ] unless* factor-bundle-subdir ;
+    "FACTOR_CACHE" os-env
+    [ "XDG_CACHE_HOME" os-env [ "~/.cache" ] when-empty ] when-empty
+    [ "~/.cache" ] when-empty expand-path factor-bundle-subdir ;

@@ -24,15 +24,45 @@
 
 // C++ headers
 #include <algorithm>
+#include <atomic>
+#include <functional>
 #include <list>
 #include <map>
+#include <memory>
 #include <set>
+#include <string_view>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <iostream>
 #include <iomanip>
 #include <limits>
 #include <sstream>
 #include <string>
+
+// Compile-time FNV-1a hash for efficient switch-based string dispatch
+namespace factor {
+constexpr uint32_t fnv1a_hash(const char* s, size_t len) {
+  uint32_t hash = 2166136261u;
+  for (size_t i = 0; i < len; ++i) {
+    hash ^= static_cast<uint32_t>(s[i]);
+    hash *= 16777619u;
+  }
+  return hash;
+}
+
+constexpr uint32_t fnv1a_hash(const char* s) {
+  uint32_t hash = 2166136261u;
+  while (*s) {
+    hash ^= static_cast<uint32_t>(*s++);
+    hash *= 16777619u;
+  }
+  return hash;
+}
+
+// Helper for use in switch cases
+#define WORD_HASH(str) (::factor::fnv1a_hash(str))
+}
 
 #define FACTOR_STRINGIZE_I(x) #x
 #define FACTOR_STRINGIZE(x) FACTOR_STRINGIZE_I(x)
@@ -80,6 +110,11 @@
 #elif defined(__POWERPC__) || defined(__ppc__) || defined(_ARCH_PPC)
 #define FACTOR_PPC32
 #define FACTOR_PPC
+#elif defined(__wasm32__) || defined(__EMSCRIPTEN__) || defined(__wasi__)
+#ifndef FACTOR_WASM
+#define FACTOR_WASM
+#endif
+#define FACTOR_WASM32
 #else
 #error "Unsupported architecture"
 #endif

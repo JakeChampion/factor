@@ -2,12 +2,24 @@
 
 namespace factor {
 
+static bool wasm_trace_enabled_local() {
+#if defined(FACTOR_WASM)
+  return std::getenv("FACTOR_WASM_TRACE") != nullptr;
+#else
+  return false;
+#endif
+}
+
 bool factor_vm::fatal_erroring_p;
 
 static inline void fa_diddly_atal_error() {
   printf("fatal_error in fatal_error!\n");
   breakpoint();
+#if defined(FACTOR_WASM)
+  abort();
+#else
   ::_exit(86);
+#endif
 }
 
 void fatal_error(const char* msg, cell tagged) {
@@ -40,6 +52,48 @@ void factor_vm::general_error(vm_error_type error, cell arg1_, cell arg2_) {
   data_root<object> arg1(arg1_, this);
   data_root<object> arg2(arg2_, this);
 
+#if defined(FACTOR_WASM)
+  // Track error counts - only report non-IO errors (IO errors are expected during vocab loading)
+  static int io_errors = 0;
+  static int other_errors = 0;
+
+  // Log ALL errors to file for debugging
+  {
+    FILE* f = fopen("init-factor.log", "a");
+    if (f) {
+      static const char* error_names[] = {
+        "EXPIRED", "IO", "UNUSED", "TYPE", "DIVIDE_BY_ZERO", "SIGNAL",
+        "ARRAY_SIZE", "OUT_OF_FIXNUM_RANGE", "FFI", "UNDEFINED_SYMBOL",
+        "DATASTACK_UNDERFLOW", "DATASTACK_OVERFLOW", "RETAINSTACK_UNDERFLOW",
+        "RETAINSTACK_OVERFLOW", "CALLSTACK_UNDERFLOW", "CALLSTACK_OVERFLOW",
+        "MEMORY", "FP_TRAP", "INTERRUPT", "CALLBACK_SPACE_OVERFLOW"
+      };
+      const char* name = (error < 20) ? error_names[error] : "UNKNOWN";
+      fprintf(f, "[ERROR] type=%d (%s) arg1=0x%lx arg2=0x%lx\n",
+              error, name, (unsigned long)arg1.value(), (unsigned long)arg2.value());
+      // If it's a TYPE error, print what type was expected
+      if (error == ERROR_TYPE) {
+        fixnum expected_type = untag_fixnum(arg1.value());
+        fprintf(f, "[ERROR]   expected_type=%ld got_value_tag=%ld\n",
+                (long)expected_type, (long)TAG(arg2.value()));
+      }
+      fclose(f);
+    }
+  }
+
+  if (error == ERROR_IO) {
+    io_errors++;
+  } else {
+    other_errors++;
+    // Print all non-IO errors - these are potentially real bugs
+    std::cerr << "[wasm] NON-IO ERROR #" << other_errors << " type=" << error << " arg1=";
+    print_obj(std::cerr, arg1.value());
+    std::cerr << " arg2=";
+    print_obj(std::cerr, arg2.value());
+    std::cerr << std::endl;
+  }
+#endif
+
   faulting_p = true;
 
   // If we had an underflow or overflow, data or retain stack
@@ -65,7 +119,8 @@ void factor_vm::general_error(vm_error_type error, cell arg1_, cell arg2_) {
     ctx->push(error_object);
 
     // Clear the data roots since arg1 and arg2's destructors won't be
-    // called.
+    // called. This is necessary on all platforms including WASM to prevent
+    // stale pointers from causing GC issues.
     data_roots.clear();
 
     // The unwind-native-frames subprimitive will clear faulting_p
@@ -102,7 +157,7 @@ void factor_vm::set_memory_protection_error(cell fault_addr, cell fault_pc) {
     fatal_error("Double fault", fault_addr);
   else if (fep_p)
     fatal_error("Memory protection fault during low-level debugger", fault_addr);
-  else if (atomic::load(&current_gc_p))
+  else if (factor::atomic::load(&current_gc_p))
     fatal_error("Memory protection fault during gc", fault_addr);
   signal_fault_addr = fault_addr;
   signal_fault_pc = fault_pc;
